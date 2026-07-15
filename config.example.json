@@ -1,0 +1,77 @@
+{
+  "agent_name": "",
+  "active_endpoint": "local",
+  "endpoints": [
+    {
+      "name": "local",
+      "model": "your-model.gguf",
+      "base_url": "http://localhost:8001/v1"
+    },
+    {
+      "name": "xai",
+      "model": "grok-4",
+      "base_url": "https://api.x.ai/v1"
+    }
+  ],
+  "xai_oauth": {
+    "access_token": "",
+    "refresh_token": "",
+    "expires_at": 0
+  },
+  "show_thinking": true,
+  "max_tokens": 160000,
+  "debug_logging": false,
+  "db_path": "",
+  "work_dir": "",
+  "cron_enabled": false,
+  "nmap_enabled": true,
+  "network_status_enabled": false,
+  "gateway": {
+    "telegram_enabled": false,
+    "telegram_token": "",
+    "telegram_chat_id": ""
+  },
+  "edit_height": 3,
+  "input_history_enabled": true,
+  "input_history_size": 50,
+  "auto_scroll": true,
+  "show_full_tool_dumps": false,
+  "markdown_enabled": true,
+  "clear_without_confirm": false,
+  "approvals_without_confirm": {
+    "bash": false,
+    "run_command": false,
+    "create_dir": false,
+    "delete_file": false,
+    "move_file": false,
+    "chmod": false,
+    "git_add": false,
+    "git_commit": false,
+    "git_checkout": false,
+    "git_branch": false,
+    "install_modern_cli": false,
+    "install_tool": false,
+    "kill_process": false,
+    "nmap_scan": false
+  },
+  "colors": {
+    "user": "214",
+    "assistant": "82",
+    "assistant_thinking": "245",
+    "tool_call": "220",
+    "tool_result": "245",
+    "input_border": "214",
+    "thinking_border": "33",
+    "status": "245",
+    "title": "220",
+    "error": "196",
+    "nudge": "245",
+    "compression": "214",
+    "modal_border": "196",
+    "window_active": "220",
+    "window_inactive": "245",
+    "window_empty": "238",
+    "dim": "241",
+    "empty_chat": "245"
+  }
+}

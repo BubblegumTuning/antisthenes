@@ -1,0 +1,19 @@
+{
+  "skills": {
+    "example": {
+      "name": "example",
+      "description": "# Example Skill",
+      "path": "skills/example"
+    },
+    "nmap": {
+      "name": "nmap",
+      "description": "# Network Scanning (nmap)",
+      "path": "skills/nmap"
+    },
+    "system-tools": {
+      "name": "system-tools",
+      "description": "# System CLI Tools (install_tool)",
+      "path": "skills/system-tools"
+    }
+  }
+}
