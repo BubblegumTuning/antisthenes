@@ -1,6 +1,6 @@
 # Antisthenes
 
-Minimal Go-based AI agent with streaming tool calling, persistent memory, and a rich TUI (rebuild complete per DESIGN-TUI.md).
+Minimal Go-based AI agent with streaming tool calling, persistent memory, and TUI.
 
 **Current version**: 0.1.5 (injected at build time)
 
@@ -64,10 +64,6 @@ Full list: [docs/tools.md](docs/tools.md)
 Copy `config.example.json` to `config.json` and edit.
 
 See [docs/configuration.md](docs/configuration.md)
-
-## Development
-
-TUI implementation follows DESIGN-TUI.md (phases 1–8 complete). See DESIGN.md for overall architecture.
 
 Branch: master (v0.1.5)
 
