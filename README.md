@@ -9,7 +9,6 @@ Minimal Go-based AI agent with streaming tool calling, persistent memory, and TU
 - Go (for building from source)
 - **tmux 3.7 or newer** on PATH for persistent terminal tools (`tmux_*`) and the TUI `/tmux` pane
   - el10’s packaged `tmux next-3.4` is **not** supported (broken `capture-pane -p` / corrupt buffers).
-  - This host installs upstream **3.7b** to `/usr/local/bin/tmux` (symlinked as `/usr/bin/tmux`). Backup of the old binary: `/usr/bin/tmux.next-3.4.bak`.
 
 ## Quick Start
 
