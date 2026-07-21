@@ -219,13 +219,47 @@ func TestClearSessionMessages(t *testing.T) {
 	defer store.Close()
 
 	sid, _ := store.CreateSession()
-	_ = store.AddChatMessage(sid, "user", "msg", "")
+	_ = store.AddChatMessage(sid, "user", "msg unique clear fts tokenxyz", "")
 	if err := store.ClearSessionMessages(sid); err != nil {
 		t.Fatalf("ClearSessionMessages: %v", err)
 	}
 	records, _ := store.LoadChatMessages(sid)
 	if len(records) != 0 {
 		t.Errorf("expected 0 after clear, got %d", len(records))
+	}
+	// FTS must not retain deleted content.
+	hits, err := store.SearchMessages("tokenxyz", 5)
+	if err != nil {
+		t.Fatalf("SearchMessages: %v", err)
+	}
+	if len(hits) != 0 {
+		t.Errorf("expected 0 FTS hits after clear, got %v", hits)
+	}
+}
+
+func TestSessionTitle(t *testing.T) {
+	tmp := t.TempDir()
+	store, err := NewStore(filepath.Join(tmp, "title.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	sid, _ := store.CreateSession()
+	if err := store.SetSessionTitle(sid, "Fix FTS orphans"); err != nil {
+		t.Fatal(err)
+	}
+	title, err := store.GetSessionTitle(sid)
+	if err != nil || title != "Fix FTS orphans" {
+		t.Fatalf("title=%q err=%v", title, err)
+	}
+	infos, err := store.ListSessionInfos(5)
+	if err != nil || len(infos) != 1 || infos[0].Title != "Fix FTS orphans" {
+		t.Fatalf("infos=%+v err=%v", infos, err)
+	}
+	_ = store.ClearSessionTitle(sid)
+	title, _ = store.GetSessionTitle(sid)
+	if title != "" {
+		t.Fatalf("expected empty title after clear, got %q", title)
 	}
 }
 

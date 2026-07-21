@@ -25,9 +25,7 @@ func (m *Model) handleResponseMsg(msg responseMsg) bool {
 		}
 	} else {
 		w.Messages = msg.messages
-		if winIdx == m.activeWindow {
-			m.onIterativeAgentResponse()
-		}
+		m.onIterativeAgentResponse(winIdx)
 		m.persistWindowMessages(winIdx)
 		m.refreshWindowNudges(winIdx)
 		if winIdx == telegramWindowIndex && m.gatewayReply != nil && w.GatewayChatID != "" {

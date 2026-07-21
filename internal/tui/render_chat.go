@@ -95,11 +95,11 @@ func toolResultStatus(content string) string {
 }
 
 // prefixStyledLabel wraps body text, then prepends a styled role label on the
-// first line only. Assistant bodies may use inline markdown when enabled.
+// first line only. Assistant bodies may use block+inline markdown when enabled.
 func (m Model) prefixStyledLabel(style lipgloss.Style, label, body string, width int, markdown bool) string {
 	var wrapped string
 	if markdown && m.markdownEnabled() {
-		wrapped = renderInlineMarkdown(body, width)
+		wrapped = renderMarkdown(body, width, m.palette())
 	} else {
 		wrapped = wrap(body, width)
 	}

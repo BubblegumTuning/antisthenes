@@ -1,6 +1,6 @@
 # Available Tools
 
-**Updated**: 2026-07-15 / v0.1.5 + tmux Phase 0–3
+**Updated**: 2026-07-21 / v0.3.2
 
 ## Core Tools
 - `bash`, `run_command` (policy-protected; cwd, env, timeout, background mode)
@@ -11,6 +11,7 @@
 - `find_files` (fd → find), `fuzzy_find` (fd+fzf), `cd_path` / `resolve_path` (zoxide)
 - `git_status`, `git_log`, `git_add`, `git_commit`, `git_checkout`, `git_branch`, `git_show`, `git_diff` (delta → git diff)
 - `get_current_time`, `echo`, `get_env`
+- `list_aux_models`, `complete_with_aux` (configured `aux_models` only)
 - `http_fetch` (GET/POST, headers, body, timeout; http/https only)
 - `schedule_task`, `list_tasks`, `cancel_task` (registered when `cron_enabled: true` in TUI; also available in one-shot mode with a nil scheduler)
 - `list_processes`, `kill_process` (kill always requires approval; blocks pid 0/1 and self)
@@ -45,7 +46,8 @@ Special install selectors:
 - `dump_work_summary`, `load_work_summary`
 
 ## Integration Tools
-- `mcp_call` — Call tools on remote MCP servers (registered in TUI and one-shot paths only, not in standalone `antisthenes mcp` server)
+- `mcp_call` — Call tools on remote MCP servers (registered in TUI and one-shot paths only, not in standalone `antisthenes mcp` server). `server` may be a full command line (e.g. `"./antisthenes mcp"`) or a binary with optional `args` array.
+- `mcp_list_tools` — List remote MCP tools (name, description, inputSchema); same `server`/`args` as `mcp_call`. Use before `mcp_call` when the catalog is unknown.
 - `goban_create_ticket` — Create a ticket via `goban-cli` (requires goban-cli on PATH)
 
 
@@ -76,4 +78,4 @@ Special install selectors:
 
 See `internal/agent/ansible_tools.go` and the tool registry. `ansible_check` reports availability and points to `install_tool` with `tool=ansible` when missing; run logs + executes (approval recommended); generate scaffolds + syntax checks. Policy applies to sensitive operations.
 
-**MCP exposure:** `./antisthenes mcp` serves `tools/list` dynamically from whatever is registered on that server instance. The default MCP server exposes the base registry; agent paths (TUI, `--prompt`) add `mcp_call` and may add cron tools per config.
+**MCP exposure:** `./antisthenes mcp` serves `tools/list` dynamically from whatever is registered on that server instance. The default MCP server exposes the base registry plus config-gated nmap/network tools. Agent paths (TUI, `--prompt`) add `mcp_call`, `mcp_list_tools`, cron tools, and aux-model tools via the shared registry builder (`newToolRegistry` / `RegistryOptions`).

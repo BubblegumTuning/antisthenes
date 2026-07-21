@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,7 @@ const maxChatWindows = 9
 const telegramWindowIndex = 1
 
 // ChatWindow is one irssi-style conversation buffer backed by its own session.
+// Each window may host at most one /iterative flow (state machine + worker).
 type ChatWindow struct {
 	Label             string
 	SessionID         string
@@ -25,6 +27,14 @@ type ChatWindow struct {
 	HistoryIndex      int
 	InputDraft        string
 	GatewayChatID     string
+
+	// Per-window iterative job (idle when unused).
+	iterState           IterativeState
+	iterCtx             IterativeContext
+	iterGen             int                // invalidates late result/progress after cancel
+	iterCancel          context.CancelFunc // cancels in-flight iterative worker
+	iterLogOffset       int64              // byte offset into work log for progress tail
+	iterProgressSnippet string             // last log line for thinking/status row
 }
 
 // GatewayInboundMsg delivers a platform message into the TUI (window 2).
@@ -40,6 +50,23 @@ type GatewayReplyFunc func(chatID, text string) error
 
 func (m *Model) activeWin() *ChatWindow {
 	return &m.windows[m.activeWindow]
+}
+
+// iterWin returns the chat window for an iterative job index (clamped to active on bad index).
+func (m *Model) iterWin(i int) *ChatWindow {
+	if i < 0 || i >= maxChatWindows {
+		return m.activeWin()
+	}
+	return &m.windows[i]
+}
+
+// appendMessageTo appends a chat message to a specific window.
+func (m *Model) appendMessageTo(winIdx int, msg openai.ChatCompletionMessage) {
+	if winIdx < 0 || winIdx >= maxChatWindows {
+		winIdx = m.activeWindow
+	}
+	w := &m.windows[winIdx]
+	w.Messages = append(w.Messages, msg)
 }
 
 func (m Model) windowOccupied(i int) bool {
@@ -103,6 +130,7 @@ func (m *Model) spawnNewSession() bool {
 			Label:     fmt.Sprintf("session-%d", i+1),
 			SessionID: sid,
 		}
+		m.copySharedInputHistory(&m.windows[i])
 		m.windows[i].Messages = append(m.windows[i].Messages, openai.ChatCompletionMessage{
 			Role:    "assistant",
 			Content: fmt.Sprintf("New session %s (window %d). Resume later with: ./antisthenes --resume %s", short, i+1, sid),
@@ -153,6 +181,11 @@ func (m *Model) loadWindowFromStore(index int) {
 		w.Messages = msgs
 		w.PersistedMsgCount = len(msgs)
 	}
+	if index != telegramWindowIndex {
+		if title, err := m.store.GetSessionTitle(w.SessionID); err == nil && strings.TrimSpace(title) != "" {
+			w.Label = title
+		}
+	}
 	if nudges, err := m.store.GetRecentNudges(w.SessionID, 5); err == nil {
 		w.Nudges = nudges
 	}
@@ -202,6 +235,7 @@ func (m Model) windowBarPlain(maxWidth int) string {
 				label = label[:8]
 			}
 		}
+		label = truncateRunes(label, 16)
 		text := slot + ":" + label
 		if i == m.activeWindow {
 			text = "[" + text + "]"
@@ -235,6 +269,7 @@ func (m Model) renderWindowBar() string {
 				label = label[:8]
 			}
 		}
+		label = truncateRunes(label, 16)
 		text := slot + ":" + label
 		if i == m.activeWindow {
 			parts = append(parts, p.windowActive.Render("["+text+"]"))

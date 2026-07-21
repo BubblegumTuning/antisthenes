@@ -29,6 +29,7 @@ func init() {
 		gitToolSchemas,
 		mcpToolSchemas,
 		tmuxToolSchemas,
+		auxToolSchemas,
 	)
 }
 

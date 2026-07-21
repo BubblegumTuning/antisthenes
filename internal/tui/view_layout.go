@@ -8,10 +8,22 @@ import (
 	ctx "github.com/nanami/antisthenes/internal/context"
 )
 
+// contentWidth is the full terminal content width for non-bordered chrome
+// (status text, blank status rows, separators' companion slots).
 func contentWidth(m Model) int {
-	w := m.width - 4
+	w := m.width
 	if w < 20 {
 		w = 76
+	}
+	return w
+}
+
+// borderedContentWidth is lipgloss Width for NormalBorder/RoundedBorder boxes.
+// Borders sit outside Width (+2 cols), so term-2 hugs both edges.
+func borderedContentWidth(m Model) int {
+	w := contentWidth(m) - 2
+	if w < 10 {
+		w = 10
 	}
 	return w
 }
@@ -47,7 +59,7 @@ func (m *Model) measureStaticChromeLines() int {
 	if barWidth < 20 {
 		barWidth = 80
 	}
-	sepWidth := m.width - 4
+	sepWidth := m.width
 	if sepWidth < 1 {
 		sepWidth = 1
 	}
@@ -135,9 +147,10 @@ func renderStatusRowBlank(width int) string {
 func (m *Model) renderStatusRowSlot(p palette) string {
 	w := contentWidth(*m)
 
-	if m.thinking {
+	if m.thinking && m.thinkingWindow == m.activeWindow {
 		// Bordered lipgloss styles use Height for content rows only; 1 content + 2 border = statusRowLines.
-		return renderFixedSlot(OrbitFrames[m.spinnerFrame]+" Thinking...", w, statusRowBorderedContentLines, p.thinkingBox)
+		// Width is inner; borders add +2 so borderedContentWidth hugs the terminal edges.
+		return renderFixedSlot(OrbitFrames[m.spinnerFrame]+m.iterativeThinkingLabel(), borderedContentWidth(*m), statusRowBorderedContentLines, p.thinkingBox)
 	}
 	if m.lastError != "" {
 		return renderFixedSlot("Error: "+m.lastError, w, statusRowLines, p.errorStyle)

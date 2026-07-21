@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -19,9 +21,18 @@ func (m *Model) clearSessionMemory() {
 	w := m.activeWin()
 	if m.store != nil && w.SessionID != "" {
 		_ = m.store.ClearSessionMessages(w.SessionID)
+		_ = m.store.ClearSessionTitle(w.SessionID)
 	}
 	w.Messages = nil
 	w.PersistedMsgCount = 0
+	// Reset generic chat label so the next first message can retitle.
+	if m.activeWindow != telegramWindowIndex && (w.Label == "" || w.Label != "Telegram") {
+		if m.activeWindow == 0 {
+			w.Label = "Chat"
+		} else {
+			w.Label = fmt.Sprintf("session-%d", m.activeWindow+1)
+		}
+	}
 }
 
 // refreshNudges reloads recent nudges for the active window.
@@ -48,7 +59,7 @@ func (m *Model) appendMessage(msg openai.ChatCompletionMessage) {
 
 // syncViewport refreshes scrollable chat content from the active window messages.
 func (m *Model) syncViewport() {
-	m.viewport.SetContent(m.renderChat())
+	m.refreshViewportContent()
 	if m.cfg.AutoScroll {
 		m.viewport.GotoBottom()
 	}

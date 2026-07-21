@@ -1,97 +1,117 @@
 # Antisthenes
 
-Minimal Go-based AI agent with streaming tool calling, persistent memory, and a rich TUI (rebuild complete per DESIGN-TUI.md).
+Minimal Go-based AI agent with streaming tool calling, persistent memory, and a rich terminal UI.
 
-**Current version**: 0.1.5 (injected at build time)
+**Version**: 0.3.2 (injected at build time)
 
 ## Requirements
 
-- Go (for building from source)
-- **tmux 3.7 or newer** on PATH for persistent terminal tools (`tmux_*`) and the TUI `/tmux` pane
-  - el10’s packaged `tmux next-3.4` is **not** supported (broken `capture-pane -p` / corrupt buffers).
-  - This host installs upstream **3.7b** to `/usr/local/bin/tmux` (symlinked as `/usr/bin/tmux`). Backup of the old binary: `/usr/bin/tmux.next-3.4.bak`.
+- Go (to build from source)
+- **tmux 3.7 or newer** on `PATH` for persistent terminal tools (`tmux_*`) and the optional TUI `/tmux` pane  
+  Older builds (including some distro packages based on tmux 3.4) are not supported for pane capture.
 
-## Quick Start
+## Quick start
 
 ```bash
+# Build
+make build
+# or: go build -o antisthenes ./cmd/antisthenes
+
+# Interactive TUI
 ./antisthenes
-```
 
-Run a one-shot query (pipeable):
-
-```bash
+# One-shot (scriptable)
 ./antisthenes --prompt "What is the current time?"
 ./antisthenes -P "Summarise the last session"
 echo "Summarise this" | ./antisthenes -P -
 ./antisthenes -P @prompt.txt
 ```
 
-See full command reference: [docs/cli.md](docs/cli.md)
+`./antisthenes version` prints the build version.
 
-`./antisthenes version` shows the current build version.
+Full CLI reference: [docs/cli.md](docs/cli.md)
 
-## Core Capabilities
+## Capabilities
 
-- Streaming agent loop with native tool calling and recursion
-- SQLite-backed memory with sessions, nudges, and scheduled tasks
-- File-based skills (SKILL.md + lazy index)
-- Interactive TUI (Bubble Tea; layout and integration per DESIGN-TUI.md)
-- Non-interactive / one-shot mode for scripting
-- Config-driven multi-endpoint (local llama.cpp, xAI, OpenAI-compatible)
-- MCP server/client support (dynamic `tools/list` from registry)
-- Gateway abstraction (e.g. Telegram adapter)
-- Cron/scheduler integration
-- Unified CLI install (`tool_status`, `install_tool`) for rg, nmap, prefcli tools, ansible
-- Constrained network scans (`nmap_scan`, config-gated via `nmap_enabled`)
-- Policy/approval for sensitive tools (e.g. bash, installs, nmap scans)
-- Debug logging and context compression
-- Persistent tmux sessions (local + registered SSH hosts) and optional TUI chat-area pane
+- Streaming agent loop with native tool calling
+- SQLite-backed memory (sessions with titles, nudges, scheduled tasks)
+- File-based skills (`SKILL.md` + lazy index)
+- Interactive Bubble Tea TUI and non-interactive one-shot mode
+- Multi-endpoint configuration plus optional `aux_models` for cheap/async work (e.g. session titles)
+- MCP server/client
+- Optional gateway adapters (e.g. Telegram)
+- Optional cron/scheduler (`cron_enabled` in config; off by default in the TUI)
+- Policy/approval for sensitive tools
+- Install helpers for common CLI tools; optional constrained `nmap_scan`
+- Persistent tmux sessions (local and registered SSH hosts)
+- `/iterative` multi-phase Plan → Execute → Review builds (async; optional supervised mode)
 
-See [docs/features.md](docs/features.md) for details.
+Details: [docs/features.md](docs/features.md)
 
-## TUI
+## Documentation
 
-Slash commands (`/tools`, `/build`, `/theme`, `/clear`, `/tmux`, and more): [docs/tui.md](docs/tui.md)
-
-## Tools
-
-Core FS/exec + skills, delegation, MCP call, context, Ansible, git, process, installable CLI tools, nmap, tmux, and more.
-
-Full list: [docs/tools.md](docs/tools.md)
+| Doc | Contents |
+|-----|----------|
+| [docs/cli.md](docs/cli.md) | CLI flags and subcommands |
+| [docs/configuration.md](docs/configuration.md) | `config.json` reference |
+| [docs/features.md](docs/features.md) | Feature overview |
+| [docs/tools.md](docs/tools.md) | Agent tools |
+| [docs/tui.md](docs/tui.md) | TUI slash commands and keys |
 
 ## Configuration
 
-Copy `config.example.json` to `config.json` and edit.
+```bash
+cp config.example.json config.json
+# edit endpoints, model names, and options
+```
 
-See [docs/configuration.md](docs/configuration.md)
+See [docs/configuration.md](docs/configuration.md). `config.json` is gitignored; do not commit secrets.
+
+## TUI
+
+Slash commands include `/help`, `/tools`, `/iterative`, `/build`, `/theme`, `/tmux`, `/mouse`, `/copy`, and others.  
+Reference: [docs/tui.md](docs/tui.md)
+
+### `/iterative` (summary)
+
+1. Start with `/iterative` and a project name.  
+2. Choose supervised mode when prompted (`y/N`, default **N**).  
+3. Plan in conversation; confirm when ready.  
+4. **Unsupervised**: async Plan → Execute → Review cycles until done, failed, cancelled, or the execute cap.  
+5. **Supervised**: Plan first, then choose an executor before Execute → Review.  
+6. While a job runs: `cancel` or **Ctrl+C once** interrupts that window’s job; Ctrl+C again quits the app.  
+7. Other chat windows may run their own jobs in parallel.
 
 ## Development
 
-TUI implementation follows DESIGN-TUI.md (phases 1–8 complete). See DESIGN.md for overall architecture.
-
-Branch: master (v0.1.5)
-
-## SOUL.md
-
-Edit SOUL.md to customize the agent's core system prompt.
-
-## Building
-
 ```bash
-make build          # native binary ./antisthenes (version from git tag or 0.1.5)
+make build          # ./antisthenes
 make test           # go test ./...
 make release        # static linux/amd64 tarball under dist/
 ```
 
-Manual equivalent:
+Manual build:
 
 ```bash
-CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=0.1.5" -o antisthenes ./cmd/antisthenes
+CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=0.3.2" -o antisthenes ./cmd/antisthenes
 ```
 
-(Version is set in `cmd/antisthenes/main.go` and injected via ldflags.)
+Suggested checks before merge:
+
+```bash
+gofmt -l -s .
+go vet ./...
+go test ./...
+go build ./...
+```
 
 ### CI / releases
 
-- Push/PR to `master`: `.github/workflows/ci.yml` runs vet, test, and build.
-- Tag `v*` (e.g. `git tag v0.1.5 && git push origin v0.1.5`): `.github/workflows/release.yml` builds a static tarball and attaches it to a GitHub/Gitea release (`softprops/action-gh-release@v2`). Gitea also reads `.gitea/workflows/release.yml`.
+- Push/PR to `master`: CI runs vet, test, and build (`.github/workflows/ci.yml`).
+- Tag `v*` : release workflow builds a static tarball and attaches it to the release. Gitea may use `.gitea/workflows/release.yml`.
+
+Release archives contain the binary plus `README.md`, `config.example.json`, and `SOUL.md`.
+
+## SOUL.md
+
+Edit [SOUL.md](SOUL.md) to customize the agent’s core system prompt.

@@ -41,6 +41,9 @@ func (m *Model) handleSlashCommand(input string) (tea.Cmd, bool) {
 	case input == "/copy", input == "/copy visible":
 		return m.handleCopySlash(input)
 
+	case input == "/mouse", strings.HasPrefix(input, "/mouse "):
+		return m.handleMouseSlash(input)
+
 	case input == "/help":
 		help := "Available slash commands:\n" +
 			"/clear         - Clear conversation context (y/n; use a/always to skip future prompts)\n" +
@@ -48,16 +51,17 @@ func (m *Model) handleSlashCommand(input string) (tea.Cmd, bool) {
 			"/compress      - Compress history: keep first message, stub all tool results, retain last 20 messages\n" +
 			"/dump-summary  - Ask agent to write a work summary (with file paths) to dump-*.md in /tmp, then auto-clear context and inject reload prompt\n" +
 			"/iterative      - Start clarification conversation for a complex autonomous build/design task. Agent will ask questions, propose a plan, then (on confirmation) spawn a sub-agent to execute.\n" +
-			"/build <task>  - Enter forced autonomous iterative build mode. Provide goal + definition of done. Runs until DoD met or 40 iterations.\n" +
+			fmt.Sprintf("/build <task>  - Enter forced autonomous iterative build mode. Provide goal + definition of done. Runs until DoD met or %d iterations (config iterative.max_iterations).\n", m.cfg.IterativeMaxIterations()) +
 			"/new_session   - Open a new chat window in the next free slot (3–9)\n" +
 			"/theme <name>  - Switch color theme (green, amber)\n" +
-			"/clear-history - Wipe Up/Down input history for this window\n" +
+			"/clear-history - Wipe file-backed Up/Down input history (all windows)\n" +
 			"/copy          - Copy full chat history (clipboard, or /tmp file if unavailable)\n" +
 			"/copy visible  - Copy only the lines visible in the chat viewport\n" +
+			"/mouse on|off  - App mouse: wheel scroll + drag-copy (on, default); native terminal select (off)\n" +
 			"/tools         - List registered agent tools (names + descriptions)\n" +
 			"/tmux          - Chat-area tmux pane (above thinking): on|off|refresh|host|session|status\n" +
 			"/help          - Show this help message\n\n" +
-			"Copy shortcuts: Ctrl+Y or Ctrl+Shift+C (full chat).\n\n" +
+			"Copy shortcuts: Ctrl+Y or Ctrl+Shift+C (full chat). Drag-select copies when mouse mode is on.\n\n" +
 			"Windows (irssi-style): Alt+1..9 switch buffers. 1=main chat, 2=instant messenger, 3–9=spawned sessions."
 		m.appendMessage(openai.ChatCompletionMessage{Role: "assistant", Content: help})
 		m.persistNewMessages()

@@ -21,8 +21,9 @@ var slashCommands = []slashCommand{
 	{name: "/theme", hint: "green | amber phosphor palette"},
 	{name: "/tools", hint: "list registered agent tools"},
 	{name: "/tmux", hint: "pane on|off|host|session|refresh|status"},
-	{name: "/clear-history", hint: "wipe input Up/Down history"},
+	{name: "/clear-history", hint: "wipe file-backed Up/Down history"},
 	{name: "/copy", hint: "copy chat to clipboard (visible: /copy visible)"},
+	{name: "/mouse", hint: "on|off — wheel+drag-copy vs native select"},
 	{name: "/new_session", hint: "open window in slot 3–9"},
 	{name: "/exit", hint: "quit (prints resume command)"},
 	{name: "/help", hint: "full command reference"},
@@ -40,6 +41,88 @@ func matchingSlashCommands(input string) []slashCommand {
 		}
 	}
 	return out
+}
+
+// slashCommandsTakingArgs get a trailing space after unique Tab completion.
+var slashCommandsTakingArgs = map[string]bool{
+	"/build": true,
+	"/theme": true,
+	"/tmux":  true,
+	"/mouse": true,
+	"/copy":  true,
+}
+
+// completeSlashInput applies Tab completion for slash commands on a single-line input.
+// Returns the new value and whether it changed. Always consumes Tab in the caller
+// (do not insert a literal tab into the edit box).
+func completeSlashInput(input string) (string, bool) {
+	if strings.ContainsAny(input, "\r\n") {
+		return input, false
+	}
+	// Only complete the first token; leave args alone.
+	token := input
+	if i := strings.IndexByte(input, ' '); i >= 0 {
+		if strings.TrimSpace(input[i:]) != "" {
+			return input, false
+		}
+		token = input[:i]
+	}
+	if token == "" || token[0] != '/' {
+		return input, false
+	}
+
+	var cands []string
+	for _, cmd := range slashCommands {
+		if strings.HasPrefix(cmd.name, token) {
+			cands = append(cands, cmd.name)
+		}
+	}
+	if len(cands) == 0 {
+		return input, false
+	}
+
+	next := cands[0]
+	if len(cands) > 1 {
+		lcp := longestCommonPrefix(cands)
+		if lcp != token {
+			next = lcp
+		} else {
+			// Already at LCP (or exact member): cycle through candidates.
+			idx := -1
+			for i, c := range cands {
+				if c == token {
+					idx = i
+					break
+				}
+			}
+			next = cands[(idx+1)%len(cands)]
+		}
+	}
+
+	out := next
+	if slashCommandsTakingArgs[out] {
+		out += " "
+	}
+	if out == input {
+		return input, false
+	}
+	return out, true
+}
+
+func longestCommonPrefix(strs []string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	prefix := strs[0]
+	for _, s := range strs[1:] {
+		for !strings.HasPrefix(s, prefix) {
+			if prefix == "" {
+				return ""
+			}
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+	return prefix
 }
 
 // formatSlashHintSlot returns a single-line hint for the fixed padding slot above

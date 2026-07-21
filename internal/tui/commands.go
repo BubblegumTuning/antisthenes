@@ -164,51 +164,440 @@ func writeBuildFastScaffold(task, targetDir string) (buildScaffold, error) {
 	return buildScaffold{DesignFile: designFile, DodFile: dodFile, LogFile: logFile}, nil
 }
 
-func startIterativeBuild(goal string, targetDir string, m Model) string {
-	fmt.Fprintf(os.Stderr, "[ITER] startIterativeBuild called | goal=%q target=%s\n", goal, targetDir)
+// prepareIterativeScaffold writes structured design/DoD/log files derived from
+// the planning conversation (last assistant plan + user requirements) and returns paths.
+func prepareIterativeScaffold(goal, targetDir string, messages []openai.ChatCompletionMessage) (designFile, dodFile, logFile string, err error) {
+	fmt.Fprintf(os.Stderr, "[ITER] prepareIterativeScaffold | goal=%q target=%s\n", goal, targetDir)
 	timestamp := time.Now().Format("20060102-150405")
 	slug := scaffoldSlug(goal, 30, "project")
-	designFile, dodFile, logFile := scaffoldFilePaths(targetDir, slug)
+	designFile, dodFile, logFile = scaffoldFilePaths(targetDir, slug)
 
-	designContent := fmt.Sprintf(`# Design Document
+	planBody := lastAssistantPlanMessage(messages)
+	notes := planningNotesFromMessages(messages)
+	reqs := extractRequirementBullets(goal, planBody, messages)
+	approach := extractPlanSection(planBody, []string{"approach", "proposed approach", "plan", "implementation", "steps"})
+	if strings.TrimSpace(approach) == "" {
+		approach = stripPlanFooter(planBody)
+	}
+	if strings.TrimSpace(approach) == "" {
+		approach = "Implement the goal iteratively inside the target directory; re-read design and DoD each major cycle."
+	}
+	risks := extractPlanSection(planBody, []string{"risks", "risk", "concerns", "tradeoffs", "trade-offs"})
+	if strings.TrimSpace(risks) == "" {
+		risks = "- Scope drift from the confirmed plan — re-read design and DoD each cycle.\n- Missing edge cases in planning — expand DoD if new acceptance criteria appear."
+	}
+	dodItems := extractDoDItems(goal, planBody, reqs)
+
+	designContent := formatIterativeDesignContent(timestamp, goal, targetDir, reqs, approach, risks, notes)
+	dodContent := formatIterativeDoDContent(timestamp, goal, dodItems)
+	logContent := fmt.Sprintf("[%s] Iterative build started (async)\nGoal: %s\nTarget: %s\nDesign: %s\nDoD: %s\n",
+		time.Now().Format(time.RFC3339), goal, targetDir, designFile, dodFile)
+
+	if err := writeScaffoldFiles(targetDir, designFile, dodFile, logFile, designContent, dodContent, logContent); err != nil {
+		return "", "", "", err
+	}
+	return designFile, dodFile, logFile, nil
+}
+
+// lastAssistantPlanMessage returns the best assistant plan text from planning turns.
+// Prefers the latest plan-ready message; falls back to the latest substantive assistant reply.
+func lastAssistantPlanMessage(messages []openai.ChatCompletionMessage) string {
+	var lastPlan, lastAny string
+	for _, msg := range messages {
+		if msg.Role != "assistant" {
+			continue
+		}
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
+		}
+		if skipPlanningScaffoldMessage(content) {
+			continue
+		}
+		lastAny = content
+		if isPlanReady(content) {
+			lastPlan = content
+		}
+	}
+	if lastPlan != "" {
+		return lastPlan
+	}
+	return lastAny
+}
+
+func skipPlanningScaffoldMessage(content string) bool {
+	if strings.HasPrefix(content, "[Iterative") || strings.Contains(content, "SHIM_BRIEF") {
+		return true
+	}
+	if strings.Contains(content, "name this project") || strings.Contains(content, "Run in supervised mode?") {
+		return true
+	}
+	if strings.HasPrefix(content, "Sub-agent ") {
+		return true
+	}
+	return false
+}
+
+// extractRequirementBullets gathers requirements from plan sections and user turns.
+func extractRequirementBullets(goal, planBody string, messages []openai.ChatCompletionMessage) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(item string) {
+		item = strings.TrimSpace(item)
+		item = strings.TrimLeft(item, "-*•")
+		item = strings.TrimSpace(item)
+		// strip checkbox markers
+		item = strings.TrimPrefix(item, "[ ]")
+		item = strings.TrimPrefix(item, "[x]")
+		item = strings.TrimPrefix(item, "[X]")
+		item = strings.TrimSpace(item)
+		if item == "" {
+			return
+		}
+		key := strings.ToLower(item)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, item)
+	}
+
+	sec := extractPlanSection(planBody, []string{
+		"requirements", "clarified requirements", "requirement", "scope", "goals", "objectives",
+	})
+	for _, line := range strings.Split(sec, "\n") {
+		if bulletBody, ok := parseBulletLine(line); ok {
+			add(bulletBody)
+		}
+	}
+	// Numbered steps under requirements-like sections already captured; also pull top-level bullets from plan if section empty.
+	if len(out) == 0 {
+		for _, line := range strings.Split(planBody, "\n") {
+			if bulletBody, ok := parseBulletLine(line); ok {
+				// skip confirmation boilerplate bullets
+				lower := strings.ToLower(bulletBody)
+				if strings.Contains(lower, "confirm") || strings.Contains(lower, "reply with") {
+					continue
+				}
+				add(bulletBody)
+			}
+		}
+	}
+	for _, msg := range messages {
+		if msg.Role != "user" {
+			continue
+		}
+		content := strings.TrimSpace(msg.Content)
+		if content == "" || isConfirmation(content) || isCancellation(content) {
+			continue
+		}
+		if _, ok := parseSupervisedChoice(content); ok && isTrivialChoice(content) {
+			continue
+		}
+		if _, ok := parseExecutorChoice(content); ok {
+			continue
+		}
+		// Multi-line user specs: take bullets; else whole message if short enough.
+		lines := strings.Split(content, "\n")
+		gotBullet := false
+		for _, line := range lines {
+			if bulletBody, ok := parseBulletLine(line); ok {
+				add(bulletBody)
+				gotBullet = true
+			}
+		}
+		if !gotBullet && len(content) <= 400 {
+			add(content)
+		}
+	}
+	if len(out) == 0 && strings.TrimSpace(goal) != "" {
+		add(goal)
+	}
+	return out
+}
+
+func isTrivialChoice(content string) bool {
+	c := strings.TrimSpace(strings.ToLower(content))
+	switch c {
+	case "", "y", "n", "yes", "no":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseBulletLine(line string) (string, bool) {
+	s := strings.TrimSpace(line)
+	if s == "" {
+		return "", false
+	}
+	switch {
+	case strings.HasPrefix(s, "- "), strings.HasPrefix(s, "* "), strings.HasPrefix(s, "• "):
+		return strings.TrimSpace(s[2:]), true
+	case strings.HasPrefix(s, "-"), strings.HasPrefix(s, "*"), strings.HasPrefix(s, "•"):
+		if len(s) > 1 && (s[1] == ' ' || s[1] == '[' || s[1] == '	') {
+			return strings.TrimSpace(s[1:]), true
+		}
+	}
+	// numbered list: "1. item" or "1) item"
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i > 0 && i < len(s) && (s[i] == '.' || s[i] == ')') {
+		rest := strings.TrimSpace(s[i+1:])
+		if rest != "" {
+			return rest, true
+		}
+	}
+	return "", false
+}
+
+// extractDoDItems pulls success criteria from the plan; falls back to requirements + defaults.
+func extractDoDItems(goal, planBody string, requirements []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(item string) {
+		item = strings.TrimSpace(item)
+		item = strings.TrimLeft(item, "-*•")
+		item = strings.TrimSpace(item)
+		for _, p := range []string{"[ ]", "[x]", "[X]"} {
+			item = strings.TrimPrefix(item, p)
+			item = strings.TrimSpace(item)
+		}
+		if item == "" {
+			return
+		}
+		key := strings.ToLower(item)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, item)
+	}
+
+	sec := extractPlanSection(planBody, []string{
+		"definition of done", "success criteria", "acceptance criteria", "done when", "dod",
+	})
+	for _, line := range strings.Split(sec, "\n") {
+		if body, ok := parseBulletLine(line); ok {
+			add(body)
+		} else if strings.Contains(line, "[ ]") || strings.Contains(line, "[x]") || strings.Contains(line, "[X]") {
+			// bare checkbox line without list marker
+			trimmed := strings.TrimSpace(line)
+			for _, p := range []string{"- [ ]", "- [x]", "- [X]", "* [ ]", "[ ]", "[x]", "[X]"} {
+				if strings.HasPrefix(strings.ToLower(trimmed), strings.ToLower(p)) || strings.HasPrefix(trimmed, p) {
+					add(strings.TrimSpace(trimmed[len(p):]))
+					break
+				}
+			}
+		}
+	}
+	// Also harvest any checkbox lines anywhere in the plan.
+	if len(out) == 0 {
+		for _, line := range strings.Split(planBody, "\n") {
+			trimmed := strings.TrimSpace(line)
+			lower := strings.ToLower(trimmed)
+			if strings.Contains(lower, "[ ]") || strings.HasPrefix(lower, "- [x]") {
+				if body, ok := parseBulletLine(trimmed); ok {
+					add(body)
+				}
+			}
+		}
+	}
+	if len(out) == 0 {
+		for _, r := range requirements {
+			add(r)
+		}
+	}
+	// Stable baseline criteria for the worker.
+	add("The project builds cleanly (or equivalent verify step for the stack)")
+	add("All stated requirements in the design document are met")
+	add("Work log shows completion of the main objective")
+	return out
+}
+
+// extractPlanSection returns body text under the first matching markdown/plain heading.
+func extractPlanSection(planBody string, headings []string) string {
+	if strings.TrimSpace(planBody) == "" || len(headings) == 0 {
+		return ""
+	}
+	lines := strings.Split(planBody, "\n")
+	want := map[string]bool{}
+	for _, h := range headings {
+		want[strings.ToLower(strings.TrimSpace(h))] = true
+	}
+	var b strings.Builder
+	capturing := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if headingTitle, ok := parseMarkdownHeading(trimmed); ok {
+			if want[strings.ToLower(headingTitle)] {
+				capturing = true
+				b.Reset()
+				continue
+			}
+			if capturing {
+				// next heading ends section
+				break
+			}
+			continue
+		}
+		// Bold single-line section labels: **Requirements**
+		if title, ok := parseBoldLabel(trimmed); ok {
+			if want[strings.ToLower(title)] {
+				capturing = true
+				b.Reset()
+				continue
+			}
+			if capturing {
+				break
+			}
+		}
+		if capturing {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func parseMarkdownHeading(line string) (string, bool) {
+	s := strings.TrimSpace(line)
+	if !strings.HasPrefix(s, "#") {
+		return "", false
+	}
+	i := 0
+	for i < len(s) && s[i] == '#' {
+		i++
+	}
+	if i == 0 || i > 6 {
+		return "", false
+	}
+	if i < len(s) && s[i] != ' ' && s[i] != '	' {
+		return "", false
+	}
+	title := strings.TrimSpace(s[i:])
+	title = strings.Trim(title, "#")
+	title = strings.TrimSpace(title)
+	// drop trailing colon
+	title = strings.TrimSuffix(title, ":")
+	if title == "" {
+		return "", false
+	}
+	return title, true
+}
+
+func parseBoldLabel(line string) (string, bool) {
+	s := strings.TrimSpace(line)
+	if !strings.HasPrefix(s, "**") {
+		return "", false
+	}
+	rest := s[2:]
+	end := strings.Index(rest, "**")
+	if end <= 0 {
+		return "", false
+	}
+	title := strings.TrimSpace(rest[:end])
+	title = strings.TrimSuffix(title, ":")
+	after := strings.TrimSpace(rest[end+2:])
+	// only treat as a section label when little/no body on the same line
+	if after != "" && after != ":" {
+		return "", false
+	}
+	if title == "" {
+		return "", false
+	}
+	return title, true
+}
+
+func stripPlanFooter(planBody string) string {
+	if strings.TrimSpace(planBody) == "" {
+		return ""
+	}
+	lines := strings.Split(planBody, "\n")
+	// drop trailing confirmation boilerplate lines
+	for len(lines) > 0 {
+		last := strings.TrimSpace(strings.ToLower(lines[len(lines)-1]))
+		if last == "" ||
+			strings.Contains(last, "confirm") ||
+			strings.Contains(last, "ready to proceed") ||
+			strings.Contains(last, "awaiting") ||
+			strings.Contains(last, "reply with") {
+			lines = lines[:len(lines)-1]
+			continue
+		}
+		break
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func formatIterativeDesignContent(timestamp, goal, targetDir string, requirements []string, approach, risks, notes string) string {
+	if strings.TrimSpace(notes) == "" {
+		notes = "(No planning transcript captured.)"
+	}
+	var reqBlock strings.Builder
+	if len(requirements) == 0 {
+		reqBlock.WriteString("- (none extracted — follow the goal and planning transcript)\n")
+	} else {
+		for _, r := range requirements {
+			fmt.Fprintf(&reqBlock, "- %s\n", r)
+		}
+	}
+	return fmt.Sprintf(`# Design Document
 
 **Generated**: %s
 **Goal**: %s
 **Target Directory**: %s
 
-## Clarified Requirements
+## Goal
 
-(Agent should fill this section during planning phase)
+%s
 
-## Proposed Approach
+## Requirements
 
-(Agent should fill this section)
-`, timestamp, goal, targetDir)
+%s
+## Approach
 
-	dodContent := fmt.Sprintf(`# Definition of Done
+%s
+
+## Risks
+
+%s
+
+## Planning Transcript
+
+%s
+`, timestamp, goal, targetDir, goal, reqBlock.String(), strings.TrimSpace(approach), strings.TrimSpace(risks), strings.TrimSpace(notes))
+}
+
+func formatIterativeDoDContent(timestamp, goal string, items []string) string {
+	var b strings.Builder
+	if len(items) == 0 {
+		b.WriteString("- [ ] The project builds cleanly\n")
+		b.WriteString("- [ ] All stated requirements from the design document are met\n")
+		b.WriteString("- [ ] Work log shows completion of the main objective\n")
+	} else {
+		for _, item := range items {
+			fmt.Fprintf(&b, "- [ ] %s\n", item)
+		}
+	}
+	return fmt.Sprintf(`# Definition of Done
 
 **Generated**: %s
 **Goal**: %s
 
 ## Success Criteria
 
-- [ ] The project builds cleanly
-- [ ] All stated requirements from the design document are met
-- [ ] Work log shows completion of the main objective
-`, timestamp, goal)
-
-	logContent := fmt.Sprintf("[%s] Iterative build started\nGoal: %s\nTarget: %s\nDesign: %s\nDoD: %s\n",
-		time.Now().Format(time.RFC3339), goal, targetDir, designFile, dodFile)
-
-	if err := writeScaffoldFiles(targetDir, designFile, dodFile, logFile, designContent, dodContent, logContent); err != nil {
-		return fmt.Sprintf("Failed to write scaffold files: %v", err)
-	}
-
-	return startIterativeWorker(goal, targetDir, designFile, dodFile, logFile)
+%s`, timestamp, goal, b.String())
 }
 
-func startIterativeWorker(goal, targetDir, designFile, dodFile, logFile string) string {
-	workerGoal := fmt.Sprintf(`AUTONOMOUS ITERATIVE BUILD WORKER
+// buildIterativeWorkerGoal builds the sub-agent seed prompt using config thresholds.
+func buildIterativeWorkerGoal(cfg config.Config, targetDir, designFile, dodFile, logFile string) string {
+	remind := cfg.IterativeContextRemindPercent()
+	summary := cfg.IterativeContextSummaryPercent()
+	maxIter := cfg.IterativeMaxIterations()
+	return fmt.Sprintf(`AUTONOMOUS ITERATIVE BUILD WORKER
 
 You have been given the following files inside %s:
 - %s (design document)
@@ -219,19 +608,46 @@ Instructions:
 1. Read all three files at the start of every major cycle.
 2. Work exclusively inside the directory: %s
 3. After every significant action (build, edit, test), append a timestamped entry to the work log describing what was done and the result.
-4. If context usage exceeds ~55%%, write a concise summary of progress to the work log, then continue.
-5. Stop only when the Definition of Done is fully satisfied or you have made 40 iterations.
-6. Use the bash, write_file, patch, and search_files tools as needed.
+4. If context usage exceeds ~%d%%, write a concise summary of progress to the work log, then continue.
+5. If context usage exceeds ~%d%%, force a fuller summary into the work log and treat the next cycle as a fresh planning refresh before more edits.
+6. Stop only when the Definition of Done is fully satisfied or you have made %d iterations.
+7. Use the bash, write_file, patch, and search_files tools as needed.
 
-Begin now.`, targetDir, designFile, dodFile, logFile, targetDir)
+Begin now.`, targetDir, designFile, dodFile, logFile, targetDir, remind, summary, maxIter)
+}
 
-	cfg := agent.DefaultDelegateConfig()
-	result := delegateTaskFunc(workerGoal, cfg)
+func joinIterPath(dir, name string) string {
+	return filepath.Join(dir, name)
+}
 
-	if result.Error != nil {
-		return fmt.Sprintf("Sub-agent failed: %v", result.Error)
+// startIterativeWorker remains a thin compatibility wrapper (single-pass delegate).
+// New flows use runIterativePER via startIterativePERAsync.
+func startIterativeWorker(ctx context.Context, appCfg config.Config, goal, targetDir, designFile, dodFile, logFile, executor string) string {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return fmt.Sprintf("Sub-agent completed.\nFinal output:\n%s", result.Result)
+	_ = goal
+	summary, _, err := runIterativePER(ctx, perRunOpts{
+		AppCfg:          appCfg,
+		ProjectName:     filepath.Base(targetDir),
+		TargetDir:       targetDir,
+		Goal:            goal,
+		DesignFile:      designFile,
+		DodFile:         dodFile,
+		LogFile:         logFile,
+		PlanFile:        filepath.Join(targetDir, perPlanFileName),
+		Executor:        executor,
+		Mode:            perModeFull,
+		RetryBudget:     perDefaultRetryBudget,
+		MaxExecAttempts: appCfg.IterativeMaxIterations(),
+	})
+	if err != nil && summary == "" {
+		return formatPERInterruptOrErr(ctx, "full", err)
+	}
+	if err != nil {
+		return summary
+	}
+	return summary
 }
 
 // debugLog writes timestamped entries to log/debug.log when cfg.DebugLogging is true.

@@ -5,6 +5,16 @@
       "description": "# Example Skill",
       "path": "skills/example"
     },
+    "iterative_per": {
+      "name": "iterative_per",
+      "description": "# iterative_per — Plan / Execute / Review Loop",
+      "path": "skills/iterative_per"
+    },
+    "network-status": {
+      "name": "network-status",
+      "description": "# Local Network Status",
+      "path": "skills/network-status"
+    },
     "nmap": {
       "name": "nmap",
       "description": "# Network Scanning (nmap)",

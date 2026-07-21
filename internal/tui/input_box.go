@@ -24,7 +24,11 @@ func newTextInput() textarea.Model {
 }
 
 func (m *Model) inputBoxWidth() int {
-	return inputBoxWidth(m.width)
+	return inputBoxInnerWidth(m.width)
+}
+
+func (m *Model) inputBoxStyleWidth() int {
+	return inputBoxStyleWidth(m.width)
 }
 
 func (m *Model) inputEditHeight() int {
@@ -96,13 +100,14 @@ func (m *Model) renderInputInner(editH, width int, p palette) string {
 
 func (m *Model) renderInputBox(p palette) string {
 	editH := m.inputEditHeight()
-	w := m.inputBoxWidth()
-	inner := m.renderInputInner(editH, w, p)
-	return p.input.Width(w).Height(editH).Render(inner)
+	innerW := m.inputBoxWidth()
+	styleW := m.inputBoxStyleWidth()
+	inner := m.renderInputInner(editH, innerW, p)
+	return p.input.Width(styleW).Height(editH).Render(inner)
 }
 
 func (m *Model) clearTextInput() {
-	w := m.inputBoxWidth()
+	innerW := m.inputBoxWidth()
 	h := m.textInput.Height()
 	if h <= 0 {
 		h = 3
@@ -111,6 +116,6 @@ func (m *Model) clearTextInput() {
 		}
 	}
 	m.textInput = newTextInput()
-	m.textInput.SetWidth(w)
+	m.textInput.SetWidth(innerW)
 	m.textInput.SetHeight(h)
 }

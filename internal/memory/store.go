@@ -23,7 +23,8 @@ func NewStore(path string) (*Store, error) {
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id TEXT PRIMARY KEY,
 			created_at INTEGER,
-			updated_at INTEGER
+			updated_at INTEGER,
+			title TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS messages (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +64,36 @@ func NewStore(path string) (*Store, error) {
 func (s *Store) migrate() {
 	// Best-effort schema upgrades for existing databases.
 	_, _ = s.db.Exec(`ALTER TABLE messages ADD COLUMN tool_call_id TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE sessions ADD COLUMN title TEXT NOT NULL DEFAULT ''`)
+	s.repairFTSIfNeeded()
+}
+
+// repairFTSIfNeeded rebuilds messages_fts when it has more rows than messages
+// (historical ClearSessionMessages left FTS orphans).
+func (s *Store) repairFTSIfNeeded() {
+	var msgCount, ftsCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&msgCount); err != nil {
+		return
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages_fts`).Scan(&ftsCount); err != nil {
+		return
+	}
+	if ftsCount <= msgCount {
+		return
+	}
+	_, _ = s.db.Exec(`DELETE FROM messages_fts`)
+	rows, err := s.db.Query(`SELECT content, session_id FROM messages`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var content, sid string
+		if err := rows.Scan(&content, &sid); err != nil {
+			return
+		}
+		_, _ = s.db.Exec(`INSERT INTO messages_fts (content, session_id) VALUES (?, ?)`, content, sid)
+	}
 }
 
 func (s *Store) Close() error {

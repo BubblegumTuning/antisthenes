@@ -50,12 +50,28 @@ func clampEditHeight(requested, terminalHeight int) int {
 	return editH
 }
 
-func inputBoxWidth(terminalWidth int) int {
-	w := terminalWidth - 6
+// inputBoxStyleWidth is the lipgloss Width for the bordered edit box.
+// RoundedBorder sits outside Width (+2), so term-2 renders edge-to-edge.
+func inputBoxStyleWidth(terminalWidth int) int {
+	w := terminalWidth - 2
 	if w < 10 {
 		w = 10
 	}
 	return w
+}
+
+// inputBoxInnerWidth is the usable text width inside Padding(0, 1).
+func inputBoxInnerWidth(terminalWidth int) int {
+	w := inputBoxStyleWidth(terminalWidth) - 2
+	if w < 8 {
+		w = 8
+	}
+	return w
+}
+
+// inputBoxWidth is the textarea/inner content width (alias of inputBoxInnerWidth).
+func inputBoxWidth(terminalWidth int) int {
+	return inputBoxInnerWidth(terminalWidth)
 }
 
 // truncateStatusPair shortens status texts for narrow terminals; right side yields first (DESIGN-TUI.md).

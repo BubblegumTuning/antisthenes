@@ -3,9 +3,19 @@ package agent
 import openai "github.com/sashabaranov/go-openai"
 
 var modernToolSchemas = map[string]openai.FunctionDefinition{
-	"modern_cli_status": {Description: "Deprecated: use tool_status with tool=prefcli. Shows fd, bat, eza, fzf, ast-grep, zoxide, delta availability."},
+	"modern_cli_status": {
+		Description: "Deprecated: use tool_status with tool=prefcli. Shows fd, bat, eza, fzf, ast-grep, zoxide, delta availability.",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
 	"install_modern_cli": {
 		Description: "Deprecated: use install_tool with tool=prefcli_missing. Installs missing preferred CLI tools via apk/apt/dnf. Requires approval.",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
 	},
 	"find_files": {
 		Description: "Find files by name using fd (fallback: find)",

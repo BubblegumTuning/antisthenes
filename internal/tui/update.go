@@ -10,10 +10,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyCmd, handled := m.handleKeyMsg(msg); handled {
 			return m, keyCmd
 		}
+	case tea.MouseMsg:
+		if mouseCmd, handled := m.handleMouseMsg(msg); handled {
+			return m, mouseCmd
+		}
 	case responseMsg:
 		if m.handleResponseMsg(msg) {
 			return m, tea.ClearScreen
 		}
+		return m, nil
+	case sessionTitleMsg:
+		m.handleSessionTitleMsg(msg)
+		return m, nil
+	case iterativeResultMsg:
+		if m.handleIterativeResult(msg) {
+			return m, tea.ClearScreen
+		}
+		return m, nil
+	case iterativeLogTickMsg:
+		return m.handleIterativeLogTick(msg)
+	case iterativeLogProgressMsg:
+		m.handleIterativeLogProgress(msg)
 		return m, nil
 	case GatewayInboundMsg:
 		return m, m.handleGatewayInbound(msg)

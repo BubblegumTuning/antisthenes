@@ -23,6 +23,14 @@
   "debug_logging": false,
   "db_path": "",
   "work_dir": "",
+  "aux_models": [
+    {
+      "name": "title",
+      "model": "small-model.gguf",
+      "base_url": "http://localhost:8000/v1",
+      "roles": ["title", "summarize"]
+    }
+  ],
   "cron_enabled": false,
   "nmap_enabled": true,
   "network_status_enabled": false,
@@ -34,6 +42,7 @@
   "edit_height": 3,
   "input_history_enabled": true,
   "input_history_size": 50,
+  "input_history_path": "",
   "auto_scroll": true,
   "show_full_tool_dumps": false,
   "markdown_enabled": true,
@@ -73,5 +82,10 @@
     "window_empty": "238",
     "dim": "241",
     "empty_chat": "245"
+  },
+  "iterative": {
+    "context_remind_percent": 55,
+    "context_summary_percent": 60,
+    "max_iterations": 40
   }
 }

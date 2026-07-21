@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"strings"
 	openai "github.com/sashabaranov/go-openai"
+	"strings"
 	"sync"
 )
 
@@ -72,6 +72,21 @@ func ListExecutors() []string {
 	}
 	names = append(names, "auto")
 	return names
+}
+
+// MVPExecutorNames are the supervised-mode choices from skills/iterative_per.
+var MVPExecutorNames = []string{"auto", "coder", "deep-thinker", "orchestrator"}
+
+// EnsureMVPExecutors registers the standard named executors against the given
+// default model endpoint. MVP: all names resolve to the same model.
+func EnsureMVPExecutors(model, baseURL, apiKey string) {
+	SetDefaultExecutor(model, baseURL, apiKey)
+	for _, name := range MVPExecutorNames {
+		if name == "auto" {
+			continue
+		}
+		RegisterExecutor(name, model, baseURL, apiKey)
+	}
 }
 
 // ExecuteToolCalls executes a list of tool calls using the registry and returns

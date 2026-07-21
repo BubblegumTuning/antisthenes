@@ -17,6 +17,8 @@ type DelegateConfig struct {
 	BaseURL      string
 	APIKey       string
 	ExecutorName string // optional named executor from registry (MVP falls back to default)
+	// Ctx cancels the sub-agent RunWithTools loop when cancelled. Nil → context.Background().
+	Ctx context.Context
 }
 
 // DefaultDelegateConfig returns sensible defaults matching main loop.
@@ -83,7 +85,11 @@ func DelegateTaskWithConfig(goal string, cfg DelegateConfig) SubAgentResult {
 	loop := NewLoop(cfg.APIKey, cfg.Model, cfg.BaseURL)
 	messages := []openai.ChatCompletionMessage{{Role: "user", Content: goal}}
 
-	updated, err := loop.RunWithTools(context.Background(), messages)
+	runCtx := cfg.Ctx
+	if runCtx == nil {
+		runCtx = context.Background()
+	}
+	updated, err := loop.RunWithTools(runCtx, messages)
 	if err != nil {
 		return SubAgentResult{
 			TaskID: fmt.Sprintf("task-%d", time.Now().UnixNano()),

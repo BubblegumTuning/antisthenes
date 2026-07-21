@@ -29,6 +29,8 @@ func NewClient(command string, args ...string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Discard server stderr so banners/logs cannot block the pipe.
+	cmd.Stderr = io.Discard
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -41,9 +43,21 @@ func NewClient(command string, args ...string) (*Client, error) {
 	}
 
 	// Perform initialize handshake
-	if _, err := c.call("initialize", map[string]any{}); err != nil {
+	if _, err := c.call("initialize", map[string]any{
+		"protocolVersion": "2024-11-05",
+		"capabilities":    map[string]any{},
+		"clientInfo": map[string]string{
+			"name":    "antisthenes",
+			"version": "client",
+		},
+	}); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("initialize failed: %w", err)
+	}
+	// MCP lifecycle: client notifies server it is ready (no response).
+	if err := c.notify("notifications/initialized", map[string]any{}); err != nil {
+		c.Close()
+		return nil, fmt.Errorf("initialized notification failed: %w", err)
 	}
 	return c, nil
 }
@@ -120,7 +134,7 @@ func (c *Client) call(method string, params any) (any, error) {
 	}
 
 	var resp struct {
-		ID     int           `json:"id"`
+		ID     any           `json:"id"`
 		Result any           `json:"result"`
 		Error  *JSONRPCError `json:"error"`
 	}
@@ -131,6 +145,26 @@ func (c *Client) call(method string, params any) (any, error) {
 		return nil, fmt.Errorf("MCP error %d: %s", resp.Error.Code, resp.Error.Message)
 	}
 	return resp.Result, nil
+}
+
+// notify sends a JSON-RPC notification (no id, no response expected).
+func (c *Client) notify(method string, params any) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	req := map[string]any{
+		"jsonrpc": "2.0",
+		"method":  method,
+	}
+	if params != nil {
+		req["params"] = params
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(c.stdin, "%s\n", data)
+	return err
 }
 
 // Close terminates the MCP server process.

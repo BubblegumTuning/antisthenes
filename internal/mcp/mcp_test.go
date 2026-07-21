@@ -161,11 +161,19 @@ func TestServer_HandleRequests(t *testing.T) {
 			req:    JSONRPCRequest{JSONRPC: "2.0", ID: 5, Method: "foo"},
 			wantOK: false,
 		},
+		{
+			name:   "ping",
+			req:    JSONRPCRequest{JSONRPC: "2.0", ID: 6, Method: "ping"},
+			wantOK: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := s.handleRequest(tt.req)
+			if tt.name == "notifications" {
+				return
+			}
 			if resp == nil {
 				t.Fatal("nil resp")
 			}
@@ -175,7 +183,51 @@ func TestServer_HandleRequests(t *testing.T) {
 			if !tt.wantOK && resp.Error == nil {
 				t.Error("expected error response")
 			}
+			if tt.name == "initialize" && resp.Error == nil {
+				result, _ := resp.Result.(map[string]any)
+				info, _ := result["serverInfo"].(map[string]string)
+				// default NewServer → vdev
+				if info["version"] == "" || info["name"] != "antisthenes" {
+					// map[string]string may not round-trip via typed assert from map[string]any
+					infoAny, _ := result["serverInfo"].(map[string]any)
+					if infoAny["name"] != "antisthenes" {
+						t.Errorf("serverInfo: %+v", result["serverInfo"])
+					}
+					if ver, _ := infoAny["version"].(string); ver == "" {
+						t.Error("missing version")
+					}
+				}
+			}
 		})
+	}
+
+	// notifications/initialized must produce no response
+	if resp := s.handleRequest(JSONRPCRequest{JSONRPC: "2.0", Method: "notifications/initialized"}); resp != nil {
+		t.Errorf("expected nil response for initialized notification, got %+v", resp)
+	}
+	// unknown notification (no id) must not error
+	if resp := s.handleRequest(JSONRPCRequest{JSONRPC: "2.0", Method: "notifications/foo"}); resp != nil {
+		t.Errorf("expected nil for unknown notification, got %+v", resp)
+	}
+}
+
+func TestNewServerWithVersion(t *testing.T) {
+	s := NewServerWithVersion(agent.NewToolRegistry(), "0.3.1")
+	resp := s.handleRequest(JSONRPCRequest{JSONRPC: "2.0", ID: 1, Method: "initialize"})
+	if resp == nil || resp.Error != nil {
+		t.Fatalf("initialize failed: %+v", resp)
+	}
+	result := resp.Result.(map[string]any)
+	info := result["serverInfo"].(map[string]string)
+	if info["version"] != "v0.3.1" {
+		// Result may be map[string]any nested
+		if infoAny, ok := result["serverInfo"].(map[string]any); ok {
+			if infoAny["version"] != "v0.3.1" {
+				t.Fatalf("version=%v want v0.3.1", infoAny["version"])
+			}
+		} else if info["version"] != "v0.3.1" {
+			t.Fatalf("version=%q want v0.3.1", info["version"])
+		}
 	}
 }
 
@@ -208,6 +260,92 @@ func TestRegisterMCPCallTool(t *testing.T) {
 	_, err = reg.Call("mcp_call", map[string]any{"server": "/nonexistent", "tool": "foo"})
 	if err == nil {
 		t.Error("expected connect error")
+	}
+
+	// mcp_list_tools registered
+	res, err = reg.Call("mcp_list_tools", map[string]any{"server": ""})
+	if err != nil {
+		t.Fatalf("mcp_list_tools empty server: %v", err)
+	}
+	if !strings.Contains(res, "server command is required") {
+		t.Errorf("expected server required msg, got %s", res)
+	}
+	_, err = reg.Call("mcp_list_tools", map[string]any{"server": "/nonexistent"})
+	if err == nil {
+		t.Error("expected connect error for mcp_list_tools")
+	}
+}
+
+func TestFormatMCPToolList(t *testing.T) {
+	out := formatMCPToolList(nil)
+	if !strings.Contains(out, "no tools") {
+		t.Errorf("empty: %s", out)
+	}
+	out = formatMCPToolList([]map[string]any{
+		{"name": "zeta", "description": "last"},
+		{
+			"name":        "alpha",
+			"description": "first",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{"x": map[string]any{"type": "string"}}},
+		},
+	})
+	if !strings.Contains(out, "2 tool(s)") {
+		t.Errorf("count: %s", out)
+	}
+	// alpha before zeta
+	ai := strings.Index(out, "- alpha")
+	zi := strings.Index(out, "- zeta")
+	if ai < 0 || zi < 0 || ai > zi {
+		t.Errorf("sort order: %s", out)
+	}
+	if !strings.Contains(out, "inputSchema:") {
+		t.Errorf("expected schema line: %s", out)
+	}
+}
+
+func TestSplitCommandLine(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    []string
+		wantErr bool
+	}{
+		{"./antisthenes mcp", []string{"./antisthenes", "mcp"}, false},
+		{`"/path/with space/bin" mcp`, []string{"/path/with space/bin", "mcp"}, false},
+		{`./bin --flag='a b'`, []string{"./bin", "--flag=a b"}, false},
+		{`unclosed "quote`, nil, true},
+	}
+	for _, tt := range tests {
+		got, err := splitCommandLine(tt.in)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("splitCommandLine(%q) expected error", tt.in)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("splitCommandLine(%q): %v", tt.in, err)
+			continue
+		}
+		if len(got) != len(tt.want) {
+			t.Errorf("splitCommandLine(%q)=%v want %v", tt.in, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("splitCommandLine(%q)[%d]=%q want %q", tt.in, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
+
+func TestResolveServerArgv(t *testing.T) {
+	got, err := resolveServerArgv("./antisthenes mcp", nil)
+	if err != nil || len(got) != 2 || got[0] != "./antisthenes" || got[1] != "mcp" {
+		t.Fatalf("multi-word server: got %v err %v", got, err)
+	}
+	got, err = resolveServerArgv("./antisthenes", []any{"mcp", "--flag"})
+	if err != nil || len(got) != 3 || got[1] != "mcp" || got[2] != "--flag" {
+		t.Fatalf("explicit args: got %v err %v", got, err)
 	}
 }
 

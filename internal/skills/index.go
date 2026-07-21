@@ -21,50 +21,63 @@ type SkillIndex struct {
 	root   string
 }
 
-// NewSkillIndex scans the skills/ directory or loads from index.json if present.
+// NewSkillIndex loads skills/index.json when present and valid; otherwise scans skills/ for SKILL.md dirs.
 func NewSkillIndex(root string) (*SkillIndex, error) {
 	idx := &SkillIndex{
 		Skills: make(map[string]SkillMeta),
 		root:   root,
 	}
 
-	// Prefer index.json if it exists
+	// Prefer index.json if it exists and unmarshals cleanly.
 	indexPath := filepath.Join(root, "skills", "index.json")
 	if data, err := os.ReadFile(indexPath); err == nil {
-		if err := json.Unmarshal(data, idx); err == nil {
+		if err := json.Unmarshal(data, idx); err == nil && idx.Skills != nil {
+			idx.root = root
 			return idx, nil
 		}
 	}
 
-	// Fallback: scan skills/ dir for folders containing SKILL.md
+	return scanSkillsDir(root), nil
+}
+
+// scanSkillsDir discovers directories under root/skills that contain SKILL.md.
+func scanSkillsDir(root string) *SkillIndex {
+	idx := &SkillIndex{
+		Skills: make(map[string]SkillMeta),
+		root:   root,
+	}
+
 	skillsDir := filepath.Join(root, "skills")
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
-		return idx, nil
+		return idx
 	}
 
 	for _, e := range entries {
-		if e.IsDir() {
-			meta := SkillMeta{
-				Name:        e.Name(),
-				Description: "Skill: " + e.Name(),
-				Path:        filepath.Join("skills", e.Name()),
-			}
-			mdPath := filepath.Join(skillsDir, e.Name(), "SKILL.md")
-			if content, err := os.ReadFile(mdPath); err == nil && len(content) > 0 {
-				lines := string(content)
-				if idx := bytes.IndexByte([]byte(lines), '\n'); idx > 0 {
-					lines = lines[:idx]
-				}
-				if len(lines) > 80 {
-					lines = lines[:80]
-				}
-				meta.Description = lines
-			}
-			idx.Skills[e.Name()] = meta
+		if !e.IsDir() {
+			continue
 		}
+		mdPath := filepath.Join(skillsDir, e.Name(), "SKILL.md")
+		content, err := os.ReadFile(mdPath)
+		if err != nil || len(content) == 0 {
+			continue
+		}
+		meta := SkillMeta{
+			Name:        e.Name(),
+			Description: "Skill: " + e.Name(),
+			Path:        filepath.Join("skills", e.Name()),
+		}
+		lines := string(content)
+		if i := bytes.IndexByte([]byte(lines), '\n'); i > 0 {
+			lines = lines[:i]
+		}
+		if len(lines) > 80 {
+			lines = lines[:80]
+		}
+		meta.Description = lines
+		idx.Skills[e.Name()] = meta
 	}
-	return idx, nil
+	return idx
 }
 
 // List returns all available skill metas.
@@ -90,12 +103,10 @@ func (i *SkillIndex) Load(name string) (string, error) {
 	return string(content), nil
 }
 
-// GenerateIndex creates or updates skills/index.json from the current skills directory.
+// GenerateIndex creates or updates skills/index.json by scanning the skills directory
+// (always rescans; does not reuse a stale index.json).
 func GenerateIndex(root string) error {
-	idx, err := NewSkillIndex(root) // uses scan fallback
-	if err != nil {
-		return err
-	}
+	idx := scanSkillsDir(root)
 
 	data, err := json.MarshalIndent(idx, "", "  ")
 	if err != nil {

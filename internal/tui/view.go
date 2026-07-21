@@ -56,7 +56,7 @@ func (m *Model) View() string {
 	} else if snip := m.tmuxStatusSnippet(); snip != "" {
 		rightPlain = snip + " | " + rightPlain
 	}
-	statusWidth := m.width - 4
+	statusWidth := m.width
 	if statusWidth < 0 {
 		statusWidth = 0
 	}
@@ -88,7 +88,7 @@ func (m *Model) View() string {
 	}
 	sections = append(sections, "")
 
-	sepWidth := m.width - 4
+	sepWidth := m.width
 	if sepWidth < 1 {
 		sepWidth = 1
 	}

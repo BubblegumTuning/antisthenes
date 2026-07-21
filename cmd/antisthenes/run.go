@@ -14,15 +14,54 @@ import (
 	"github.com/nanami/antisthenes/internal/mcp"
 )
 
-// newDefaultRegistryAndLoop creates a ToolRegistry (with MCP call tool registered)
-// and a Loop. This is the first step toward removing duplication between
-// the one-shot --prompt path and the main TUI bootstrap path.
-func newDefaultRegistryAndLoop(apiKey, model, baseURL string, cfg config.Config) (*agent.ToolRegistry, *agent.Loop) {
+// RegistryOptions selects optional tool packs layered on NewToolRegistry.
+// Nmap/network always follow cfg flags on every path.
+//
+// Standalone MCP server intentionally omits:
+//   - WithMCPCall — avoids recursive mcp_call/mcp_list_tools → antisthenes mcp
+//   - WithCron    — no scheduler lifecycle on stdio server
+//   - WithAux     — aux models need agent/LLM wiring
+type RegistryOptions struct {
+	WithMCPCall bool
+	WithCron    bool
+	WithAux     bool
+}
+
+// agentRegistryOptions is the TUI / one-shot tool surface.
+func agentRegistryOptions() RegistryOptions {
+	return RegistryOptions{WithMCPCall: true, WithCron: true, WithAux: true}
+}
+
+// mcpServerRegistryOptions is the standalone `antisthenes mcp` tool surface.
+func mcpServerRegistryOptions() RegistryOptions {
+	return RegistryOptions{}
+}
+
+// newToolRegistry builds a registry from the base set plus optional packs.
+// Shared by agent paths and the MCP subcommand so nmap/network (and future
+// cfg-gated tools) cannot drift between entrypoints.
+func newToolRegistry(cfg config.Config, opts RegistryOptions) *agent.ToolRegistry {
 	reg := agent.NewToolRegistry()
-	mcp.RegisterMCPCallTool(reg)
-	agent.RegisterCronTools(reg, nil)
 	agent.RegisterNmapTools(reg, cfg.NmapOn())
 	agent.RegisterNetworkTools(reg, cfg.NetworkStatusOn())
+	if opts.WithMCPCall {
+		mcp.RegisterMCPCallTool(reg)
+	}
+	if opts.WithCron {
+		agent.RegisterCronTools(reg, nil)
+	}
+	if opts.WithAux {
+		agent.RegisterAuxTools(reg, cfg)
+	}
+	return reg
+}
+
+// newDefaultRegistryAndLoop creates a ToolRegistry (agent packs) and a Loop.
+// Shared by the one-shot --prompt path and the main TUI bootstrap path.
+func newDefaultRegistryAndLoop(apiKey, model, baseURL string, cfg config.Config) (*agent.ToolRegistry, *agent.Loop) {
+	reg := newToolRegistry(cfg, agentRegistryOptions())
+	agent.EnsureMVPExecutors(model, baseURL, apiKey)
+	agent.RegisterAuxExecutors(cfg) // after MVP so named aux models can override executor slots
 	loop := agent.NewLoopWithRegistry(apiKey, model, baseURL, reg)
 	return reg, loop
 }

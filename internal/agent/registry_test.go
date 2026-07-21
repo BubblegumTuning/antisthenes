@@ -91,6 +91,25 @@ func TestToolRegistry_ToOpenAIToolsIncludesCreateDir(t *testing.T) {
 	}
 }
 
+func TestToolRegistry_AllToolsHaveParametersSchema(t *testing.T) {
+	r := NewToolRegistry()
+	// Assert every tool present on the base registry has a Parameters object schema.
+	for _, tool := range r.ToOpenAITools() {
+		if tool.Function == nil {
+			t.Fatal("nil function")
+		}
+		if tool.Function.Parameters == nil {
+			t.Errorf("tool %q missing Parameters schema (MCP/OpenAI clients need inputSchema)", tool.Function.Name)
+		}
+	}
+	// mcp_call / mcp_list_tools schemas live in toolSchemas even before registration
+	for _, name := range []string{"mcp_call", "mcp_list_tools"} {
+		if schema, ok := toolSchemas[name]; !ok || schema.Parameters == nil {
+			t.Errorf("%s schema missing Parameters", name)
+		}
+	}
+}
+
 func TestToolRegistry_ToOpenAIToolsIncludesMCPCallWhenRegistered(t *testing.T) {
 	r := NewToolRegistry()
 	if toolListed(r.ToOpenAITools(), "mcp_call") {

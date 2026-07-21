@@ -95,7 +95,7 @@ func TestWriteCopyDestination_FileFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("writeCopyDestination: %v", err)
 	}
-	if dest.method != "file" && dest.method != "clipboard" {
+	if dest.method != "file" && dest.method != "clipboard" && dest.method != "osc52" {
 		t.Fatalf("unexpected method: %q", dest.method)
 	}
 	if dest.method == "file" {

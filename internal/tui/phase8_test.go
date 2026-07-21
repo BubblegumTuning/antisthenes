@@ -151,7 +151,7 @@ func TestPhase8_CronNotificationInView(t *testing.T) {
 
 func TestPhase8_IterativeStatusInView(t *testing.T) {
 	m := basePhase8Model()
-	m.iterState = IterPlanning
+	m.windows[0].iterState = IterPlanning
 	out := m.View()
 	if !strings.Contains(out, "iterative") && !strings.Contains(out, "planning") {
 		t.Error("iterative status not shown in view")

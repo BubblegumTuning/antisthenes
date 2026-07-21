@@ -7,7 +7,7 @@ import (
 )
 
 // version is injected at build time via -ldflags "-X main.version=..."
-var version = "0.1.5"
+var version = "0.3.2"
 
 func main() {
 	cfg := config.Load()

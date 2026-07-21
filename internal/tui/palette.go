@@ -26,6 +26,15 @@ type palette struct {
 	windowActive   lipgloss.Style
 	windowInactive lipgloss.Style
 	windowEmpty    lipgloss.Style
+
+	// Markdown (DESIGN-TUI): bold→assistant, heading→title, code→tool_result, link→status.
+	mdBold      lipgloss.Style
+	mdItalic    lipgloss.Style
+	mdCode      lipgloss.Style
+	mdLink      lipgloss.Style
+	mdStrike    lipgloss.Style
+	mdHeading   lipgloss.Style
+	mdCodeBlock lipgloss.Style
 }
 
 func (m Model) palette() palette {
@@ -35,6 +44,9 @@ func (m Model) palette() palette {
 func buildPalette(c config.TUIColors) palette {
 	colors := c
 	colors.ApplyDefaults()
+	codeStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(colors.ToolResult)).
+		Background(lipgloss.Color(colors.WindowEmpty))
 	return palette{
 		input: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -83,5 +95,21 @@ func buildPalette(c config.TUIColors) palette {
 			Foreground(lipgloss.Color(colors.WindowInactive)),
 		windowEmpty: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colors.WindowEmpty)),
+		mdBold: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color(colors.Assistant)),
+		mdItalic: lipgloss.NewStyle().
+			Italic(true),
+		mdCode: codeStyle,
+		mdLink: lipgloss.NewStyle().
+			Underline(true).
+			Foreground(lipgloss.Color(colors.Status)),
+		mdStrike: lipgloss.NewStyle().
+			Strikethrough(true).
+			Foreground(lipgloss.Color(colors.Dim)),
+		mdHeading: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color(colors.Title)),
+		mdCodeBlock: codeStyle,
 	}
 }

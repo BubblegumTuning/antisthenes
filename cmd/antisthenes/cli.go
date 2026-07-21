@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/nanami/antisthenes/config"
-	"github.com/nanami/antisthenes/internal/agent"
 	"github.com/nanami/antisthenes/internal/mcp"
 	"github.com/nanami/antisthenes/internal/memory"
 	"github.com/nanami/antisthenes/internal/skills"
@@ -38,25 +37,28 @@ func handleSubcommand(args []string, cfg config.Config) bool {
 			os.Exit(1)
 		}
 		defer store.Close()
-		sessions, err := store.ListSessions(20)
+		sessions, err := store.ListSessionInfos(20)
 		if err != nil {
 			fmt.Println("Error listing sessions:", err)
 			os.Exit(1)
 		}
 		fmt.Println("Recent sessions:")
 		for _, s := range sessions {
-			fmt.Println("  ", s)
+			title := s.Title
+			if title == "" {
+				title = "(untitled)"
+			}
+			fmt.Printf("  %s  %s\n", s.ID, title)
 		}
 		return true
 	case "mcp":
-		fmt.Println("Starting Antisthenes MCP server (stdio)...")
+		// Banner and errors must not touch stdout — MCP stdio is JSON-RPC only.
+		fmt.Fprintln(os.Stderr, "Starting Antisthenes MCP server (stdio)...")
 		cfg := config.Load()
-		reg := agent.NewToolRegistry()
-		agent.RegisterNmapTools(reg, cfg.NmapOn())
-		agent.RegisterNetworkTools(reg, cfg.NetworkStatusOn())
-		srv := mcp.NewServer(reg)
+		reg := newToolRegistry(cfg, mcpServerRegistryOptions())
+		srv := mcp.NewServerWithVersion(reg, version)
 		if err := srv.Run(); err != nil {
-			fmt.Println("MCP server error:", err)
+			fmt.Fprintln(os.Stderr, "MCP server error:", err)
 			os.Exit(1)
 		}
 		return true

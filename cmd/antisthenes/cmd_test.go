@@ -51,6 +51,49 @@ func TestHandleSubcommand_Sessions(t *testing.T) {
 	}
 }
 
+// MCP stdio must not emit non-JSON banners on stdout (protocol is JSON-RPC only).
+func TestHandleSubcommand_MCP_StdoutClean(t *testing.T) {
+	oldStdout := os.Stdout
+	oldStdin := os.Stdin
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rIn, wIn, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = wOut
+	os.Stdin = rIn
+	defer func() {
+		os.Stdout = oldStdout
+		os.Stdin = oldStdin
+	}()
+
+	// Immediate EOF so Server.Run returns without hanging.
+	_ = wIn.Close()
+
+	cfg := config.DefaultConfig()
+	done := make(chan bool, 1)
+	go func() {
+		done <- handleSubcommand([]string{"antisthenes", "mcp"}, cfg)
+	}()
+
+	handled := <-done
+	_ = wOut.Close()
+	out := make([]byte, 4096)
+	n, _ := rOut.Read(out)
+	_ = rOut.Close()
+	_ = rIn.Close()
+
+	if !handled {
+		t.Fatal("mcp should be handled")
+	}
+	if n > 0 {
+		t.Fatalf("mcp subcommand wrote to stdout (must be JSON-RPC only): %q", string(out[:n]))
+	}
+}
+
 func TestNewDefaultRegistryAndLoop(t *testing.T) {
 	reg, loop := newDefaultRegistryAndLoop("dummy", "test-model", "http://example.invalid/v1", config.DefaultConfig())
 	if reg == nil {
@@ -68,6 +111,41 @@ func TestNewDefaultRegistryAndLoop(t *testing.T) {
 	}
 	if !foundMCP {
 		t.Error("mcp_call missing from default registry tool list")
+	}
+}
+
+func TestNewToolRegistry_MCPServerOmitsAgentOnlyPacks(t *testing.T) {
+	cfg := config.DefaultConfig()
+	reg := newToolRegistry(cfg, mcpServerRegistryOptions())
+	names := map[string]bool{}
+	for _, tool := range reg.ToOpenAITools() {
+		if tool.Function != nil {
+			names[tool.Function.Name] = true
+		}
+	}
+	for _, forbidden := range []string{"mcp_call", "mcp_list_tools", "schedule_task", "list_tasks", "cancel_task", "list_aux_models", "complete_with_aux"} {
+		if names[forbidden] {
+			t.Errorf("MCP server registry must not include %s", forbidden)
+		}
+	}
+	if !names["bash"] || !names["read_file"] {
+		t.Error("MCP server registry missing core tools")
+	}
+}
+
+func TestNewToolRegistry_AgentIncludesPacks(t *testing.T) {
+	cfg := config.DefaultConfig()
+	reg := newToolRegistry(cfg, agentRegistryOptions())
+	names := map[string]bool{}
+	for _, tool := range reg.ToOpenAITools() {
+		if tool.Function != nil {
+			names[tool.Function.Name] = true
+		}
+	}
+	for _, want := range []string{"mcp_call", "mcp_list_tools", "schedule_task", "list_tasks", "cancel_task"} {
+		if !names[want] {
+			t.Errorf("agent registry missing %s", want)
+		}
 	}
 }
 

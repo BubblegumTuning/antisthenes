@@ -3,7 +3,16 @@ package agent
 import openai "github.com/sashabaranov/go-openai"
 
 var execToolSchemas = map[string]openai.FunctionDefinition{
-	"bash": {Description: "Execute bash command (with approval)"},
+	"bash": {
+		Description: "Execute bash command (with approval)",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"command": map[string]any{"type": "string", "description": "Bash command to execute"},
+			},
+			"required": []string{"command"},
+		},
+	},
 	"run_command": {
 		Description: "Run a shell command with optional cwd, env, timeout, or background mode (with approval)",
 		Parameters: map[string]any{
@@ -29,5 +38,11 @@ var execToolSchemas = map[string]openai.FunctionDefinition{
 			"required": []string{"job_id"},
 		},
 	},
-	"list_background_jobs": {Description: "List background run_command jobs and their status"},
+	"list_background_jobs": {
+		Description: "List background run_command jobs and their status",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/nanami/antisthenes/internal/agent"
 )
@@ -13,11 +14,25 @@ import (
 // Server implements a minimal MCP server over stdio (JSON-RPC 2.0).
 type Server struct {
 	registry *agent.ToolRegistry
+	version  string
 }
 
 // NewServer creates an MCP server backed by the given tool registry.
+// Version defaults to "dev" unless set via NewServerWithVersion.
 func NewServer(registry *agent.ToolRegistry) *Server {
-	return &Server{registry: registry}
+	return NewServerWithVersion(registry, "")
+}
+
+// NewServerWithVersion is like NewServer but sets serverInfo.version (e.g. "0.3.1").
+func NewServerWithVersion(registry *agent.ToolRegistry, version string) *Server {
+	v := strings.TrimSpace(version)
+	if v == "" {
+		v = "dev"
+	}
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	return &Server{registry: registry, version: v}
 }
 
 // Run starts the stdio JSON-RPC loop. Blocks until stdin is closed.
@@ -80,9 +95,23 @@ func (s *Server) handleRequest(req JSONRPCRequest) *JSONRPCResponse {
 				},
 				"serverInfo": map[string]string{
 					"name":    "antisthenes",
-					"version": "v0.2.1",
+					"version": s.version,
 				},
 			},
+		}
+
+	case "notifications/initialized", "initialized":
+		// Client lifecycle notification — no JSON-RPC response.
+		return nil
+
+	case "ping":
+		if req.ID == nil {
+			return nil
+		}
+		return &JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  map[string]any{},
 		}
 
 	case "tools/list":
@@ -115,6 +144,10 @@ func (s *Server) handleRequest(req JSONRPCRequest) *JSONRPCResponse {
 		}
 
 	default:
+		// Unknown notifications must not error (no id → no response).
+		if req.ID == nil {
+			return nil
+		}
 		return s.errorResponse(req.ID, -32601, "Method not found: "+req.Method)
 	}
 }

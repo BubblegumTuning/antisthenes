@@ -29,11 +29,10 @@ type Model struct {
 	confirmCommand     string
 	pendingDumpSummary bool
 	pendingDumpWindow  int
-	iterState          IterativeState
-	iterCtx            IterativeContext
-	approval           *approvalUI
-	gatewayReply       GatewayReplyFunc
-	notify             NotifyFunc
+	// Iterative /iterative job state lives per ChatWindow (one flow per window).
+	approval     *approvalUI
+	gatewayReply GatewayReplyFunc
+	notify       NotifyFunc
 	// Phase 3: chat-area tmux pane (above thinking/status; DESIGN.md horizontal split)
 	tmuxEnabled     bool
 	tmuxHost        string // empty = localhost
@@ -44,6 +43,14 @@ type Model struct {
 	tmuxViewport    viewport.Model
 	tmuxCaptureBusy bool // one in-flight capture at a time
 	tmuxCaptureSeq  int  // drop stale async results
+
+	// Mouse mode (default on): wheel scrolls viewport; left-drag selects and copies.
+	// /mouse off disables app mouse tracking so the terminal can native-select.
+	mouseEnabled bool
+	selSelecting bool
+	selHasRange  bool
+	selAnchor    selPos
+	selEnd       selPos
 }
 
 // NotifyFunc posts messages into the running Program (typically p.Send).
@@ -53,6 +60,29 @@ type responseMsg struct {
 	windowIndex int
 	messages    []openai.ChatCompletionMessage
 	err         error
+}
+
+// iterativeResultMsg is delivered when an async /iterative worker finishes.
+// kind is perResultKindPlan (supervised gate) or perResultKindFull (terminal).
+type iterativeResultMsg struct {
+	win    int
+	gen    int
+	result string
+	kind   string
+}
+
+// iterativeLogTickMsg schedules a non-blocking read of one window's work log.
+type iterativeLogTickMsg struct {
+	win int
+	gen int
+}
+
+// iterativeLogProgressMsg carries newly appended work-log bytes into the TUI.
+type iterativeLogProgressMsg struct {
+	win       int
+	gen       int
+	chunk     string
+	newOffset int64
 }
 
 type spinnerTickMsg struct{}
@@ -69,8 +99,9 @@ type GatewayMsg struct {
 // window 2 is reserved for the configured instant messenger.
 func NewModel(loop *agent.Loop, store *memory.Store, sessionID string, telegramEnabled bool) Model {
 	cfg := config.Load()
-	// Note: edit height applied in view/update per Phase 1. Suggestions handled via slash hints + future history/tab.
-	// SetSuggestions/ShowSuggestions removed (textinput-specific); tab + input history MVP added in Phase 2.
+	// Note: edit height applied in view/update per Phase 1. Slash hints when input
+	// starts with `/`; Tab completes slash commands (handleSlashTabComplete).
+	// textinput SetSuggestions was removed with the textarea migration.
 
 	m := Model{
 		loop:         loop,
@@ -79,6 +110,7 @@ func NewModel(loop *agent.Loop, store *memory.Store, sessionID string, telegramE
 		cfg:          cfg,
 		showThinking: cfg.ShowThinking,
 		approval:     newApprovalUI(),
+		mouseEnabled: true,
 	}
 	m.windows[0] = ChatWindow{
 		Label:     "Chat",
@@ -96,6 +128,7 @@ func NewModel(loop *agent.Loop, store *memory.Store, sessionID string, telegramE
 	if m.windows[telegramWindowIndex].SessionID != "" {
 		m.loadWindowFromStore(telegramWindowIndex)
 	}
+	m.seedInputHistoryFromDisk()
 	return m
 }
 

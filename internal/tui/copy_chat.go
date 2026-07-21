@@ -82,11 +82,13 @@ func (m Model) plainVisibleChatText() string {
 }
 
 type copyDestination struct {
-	method string // "clipboard" or "file"
+	method string // "clipboard", "osc52", or "file"
 	path   string // set when method == "file"
 }
 
-func emitOSC52(text string) {
+// emitOSC52 writes an OSC 52 clipboard sequence to the controlling TTY when possible.
+// This is the primary remote/SSH copy path when local clipboard tools are unavailable.
+func emitOSC52(text string) bool {
 	seq := osc52.New(text)
 	switch {
 	case os.Getenv("TMUX") != "":
@@ -94,7 +96,17 @@ func emitOSC52(text string) {
 	case os.Getenv("STY") != "":
 		seq = seq.Screen()
 	}
-	_, _ = fmt.Fprint(os.Stderr, seq)
+	payload := seq.String()
+	if tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
+		_, werr := fmt.Fprint(tty, payload)
+		_ = tty.Close()
+		if werr == nil {
+			return true
+		}
+	}
+	// Fall back to stderr (may still reach the client terminal under some setups).
+	_, err := fmt.Fprint(os.Stderr, payload)
+	return err == nil
 }
 
 func writeCopyFile(text string) (string, error) {
@@ -110,7 +122,12 @@ func writeCopyDestination(text string) (copyDestination, error) {
 	if err := clipboard.WriteAll(text); err == nil {
 		return copyDestination{method: "clipboard"}, nil
 	}
-	emitOSC52(text)
+	// OSC52 works over SSH when the client terminal permits clipboard access.
+	// Prefer it over a temp file so remote sessions get a real pasteboard update.
+	const osc52Max = 256 * 1024
+	if len(text) <= osc52Max && emitOSC52(text) {
+		return copyDestination{method: "osc52"}, nil
+	}
 	path, err := writeCopyFile(text)
 	if err != nil {
 		return copyDestination{}, fmt.Errorf("clipboard unavailable and file write failed: %w", err)
@@ -143,6 +160,12 @@ func (m *Model) copyChat(scope string) {
 			w.LastNotification = fmt.Sprintf("Copied %d visible lines to clipboard", lines)
 		} else {
 			w.LastNotification = fmt.Sprintf("Copied chat (%d lines) to clipboard", lines)
+		}
+	case "osc52":
+		if scope == "visible" {
+			w.LastNotification = fmt.Sprintf("Copied %d visible lines to clipboard (terminal/SSH)", lines)
+		} else {
+			w.LastNotification = fmt.Sprintf("Copied chat (%d lines) to clipboard (terminal/SSH)", lines)
 		}
 	default:
 		if scope == "visible" {

@@ -30,7 +30,7 @@ func (b *PromptBuilder) ShouldCompress(messages []openai.ChatCompletionMessage) 
 func DumpWorkSummary(sessionID string, summary string) (string, error) {
 	wd := config.Load().WorkDir
 	if wd == "" {
-		wd = filepath.Join(os.TempDir(), "antisthenes")
+		wd = config.DefaultWorkDir()
 	}
 	if err := os.MkdirAll(wd, 0700); err != nil {
 		return "", err
@@ -56,7 +56,7 @@ func LoadWorkSummary(path string) (string, error) {
 func ListWorkSummaries() ([]string, error) {
 	wd := config.Load().WorkDir
 	if wd == "" {
-		wd = filepath.Join(os.TempDir(), "antisthenes")
+		wd = config.DefaultWorkDir()
 	}
 	entries, err := os.ReadDir(wd)
 	if err != nil {

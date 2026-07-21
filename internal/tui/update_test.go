@@ -239,3 +239,58 @@ func TestUpdate_KeyEnter_ClearsTextInput(t *testing.T) {
 		t.Fatalf("textInput not cleared after enter: %q", updated.textInput.Value())
 	}
 }
+
+// Regression: Tab completion lived on bubbles/textinput SetSuggestions (8759add) and was
+// dropped when the edit box moved to textarea during the TUI rebuild. Only padding slash
+// *hints* remained; handleKeyMsg had no tea.KeyTab case, so Tab either did nothing useful
+// or fell through to the textarea. Guard the full Update → handleKeyMsg wire, not just the
+// helper (helpers can stay while the KeyTab case is deleted again).
+func TestUpdate_KeyTab_CompletesSlashCommand(t *testing.T) {
+	ti := newTextInput()
+	ti.SetValue("/hel")
+	m := Model{
+		textInput: ti,
+		ready:     true,
+		width:     80,
+		viewport:  viewport.New(80, 10),
+		cfg:       config.Config{AgentName: "Test"},
+	}
+
+	// Direct key path: Tab must be claimed (handled=true) so it never reaches textarea.Update.
+	_, handled := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyTab})
+	if !handled {
+		t.Fatal("tea.KeyTab must be handled by handleKeyMsg (otherwise textarea may insert a tab and slash completion is dead)")
+	}
+	if m.textInput.Value() != "/help" {
+		t.Fatalf("after KeyTab via handleKeyMsg: got %q want /help", m.textInput.Value())
+	}
+
+	// Full Update path (same entry as a live Program).
+	m.textInput.SetValue("/the")
+	updated, _ := modelFromUpdate(&m, tea.KeyMsg{Type: tea.KeyTab})
+	if updated.textInput.Value() != "/theme " {
+		t.Fatalf("after KeyTab via Update: got %q want %q", updated.textInput.Value(), "/theme ")
+	}
+}
+
+// Tab on non-slash input must still be consumed so a literal tab character is never inserted.
+func TestUpdate_KeyTab_NonSlashStillConsumed(t *testing.T) {
+	ti := newTextInput()
+	ti.SetValue("hello")
+	m := Model{
+		textInput: ti,
+		ready:     true,
+		width:     80,
+		viewport:  viewport.New(80, 10),
+	}
+	_, handled := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyTab})
+	if !handled {
+		t.Fatal("KeyTab must always be handled, even when not completing a slash command")
+	}
+	if m.textInput.Value() != "hello" {
+		t.Fatalf("non-slash value should be unchanged, got %q", m.textInput.Value())
+	}
+	if strings.Contains(m.textInput.Value(), "	") {
+		t.Fatal("literal tab must not appear in input")
+	}
+}

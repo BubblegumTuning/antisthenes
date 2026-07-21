@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +27,12 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.DBPath == "" || cfg.WorkDir == "" {
 		t.Error("expected DBPath and WorkDir to be set")
+	}
+	if strings.Contains(cfg.DBPath, "demo") {
+		t.Errorf("default DBPath must not contain demo: %s", cfg.DBPath)
+	}
+	if !strings.HasSuffix(cfg.DBPath, "antisthenes.db") {
+		t.Errorf("expected antisthenes.db suffix, got %s", cfg.DBPath)
 	}
 	// check endpoints
 	foundLocal := false
@@ -54,6 +62,45 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.NetworkStatusOn() {
 		t.Error("expected NetworkStatusEnabled false by default")
+	}
+	if cfg.IterativeContextRemindPercent() != DefaultIterativeContextRemindPercent {
+		t.Errorf("remind default: got %d", cfg.IterativeContextRemindPercent())
+	}
+	if cfg.IterativeContextSummaryPercent() != DefaultIterativeContextSummaryPercent {
+		t.Errorf("summary default: got %d", cfg.IterativeContextSummaryPercent())
+	}
+	if cfg.IterativeMaxIterations() != DefaultIterativeMaxIterations {
+		t.Errorf("max_iterations default: got %d", cfg.IterativeMaxIterations())
+	}
+}
+
+func TestIterativeThresholdAccessors(t *testing.T) {
+	// Zero values → defaults
+	z := Config{}
+	if z.IterativeContextRemindPercent() != 55 || z.IterativeContextSummaryPercent() != 60 || z.IterativeMaxIterations() != 40 {
+		t.Fatalf("zero config accessors: remind=%d summary=%d max=%d",
+			z.IterativeContextRemindPercent(), z.IterativeContextSummaryPercent(), z.IterativeMaxIterations())
+	}
+	// Custom values
+	c := Config{Iterative: IterativeSettings{ContextRemindPercent: 40, ContextSummaryPercent: 70, MaxIterations: 12}}
+	if c.IterativeContextRemindPercent() != 40 || c.IterativeContextSummaryPercent() != 70 || c.IterativeMaxIterations() != 12 {
+		t.Fatalf("custom: %+v accessors r=%d s=%d m=%d", c.Iterative, c.IterativeContextRemindPercent(), c.IterativeContextSummaryPercent(), c.IterativeMaxIterations())
+	}
+	// Summary below remind clamps up to remind
+	c2 := Config{Iterative: IterativeSettings{ContextRemindPercent: 70, ContextSummaryPercent: 50}}
+	if c2.IterativeContextSummaryPercent() != 70 {
+		t.Fatalf("summary should clamp to remind, got %d", c2.IterativeContextSummaryPercent())
+	}
+	// Out of range percent → default
+	c3 := Config{Iterative: IterativeSettings{ContextRemindPercent: 150, ContextSummaryPercent: -1, MaxIterations: 0}}
+	if c3.IterativeContextRemindPercent() != 55 {
+		t.Fatalf("invalid remind → 55, got %d", c3.IterativeContextRemindPercent())
+	}
+	if c3.IterativeContextSummaryPercent() != 60 {
+		t.Fatalf("invalid summary → 60, got %d", c3.IterativeContextSummaryPercent())
+	}
+	if c3.IterativeMaxIterations() != 40 {
+		t.Fatalf("zero max → 40, got %d", c3.IterativeMaxIterations())
 	}
 }
 
@@ -234,5 +281,69 @@ func TestLoad_InputHistoryExplicitFalse(t *testing.T) {
 	}
 	if cfg.InputHistorySize != 10 {
 		t.Errorf("size = %d, want 10", cfg.InputHistorySize)
+	}
+}
+
+func TestPathEnvOverrides(t *testing.T) {
+	origWD, _ := os.Getwd()
+	tmp := t.TempDir()
+	_ = os.Chdir(tmp)
+	defer func() { _ = os.Chdir(origWD) }()
+
+	dataDir := filepath.Join(tmp, "data-root")
+	dbOverride := filepath.Join(tmp, "custom.db")
+	workOverride := filepath.Join(tmp, "custom-work")
+
+	t.Setenv(EnvDataDir, dataDir)
+	t.Setenv(EnvDBPath, "")
+	t.Setenv(EnvDB, "")
+	t.Setenv(EnvWorkDir, "")
+	// Empty config → data dir defaults
+	_ = os.WriteFile("config.json", []byte(`{"agent_name":"E"}`), 0600)
+	cfg := Load()
+	if cfg.DBPath != filepath.Join(dataDir, "antisthenes.db") {
+		t.Fatalf("data dir db: got %s", cfg.DBPath)
+	}
+	if cfg.WorkDir != filepath.Join(dataDir, "work") {
+		t.Fatalf("data dir work: got %s", cfg.WorkDir)
+	}
+
+	t.Setenv(EnvDBPath, dbOverride)
+	t.Setenv(EnvWorkDir, workOverride)
+	cfg = Load()
+	if cfg.DBPath != dbOverride || cfg.WorkDir != workOverride {
+		t.Fatalf("specific env: db=%s work=%s", cfg.DBPath, cfg.WorkDir)
+	}
+
+	// Config path ignored when specific env set
+	_ = os.WriteFile("config.json", []byte(`{"db_path":"/from/config.db","work_dir":"/from/config-work"}`), 0600)
+	cfg = Load()
+	if cfg.DBPath != dbOverride {
+		t.Fatalf("env must win over config db: %s", cfg.DBPath)
+	}
+
+	// No specific env → config path wins over data dir
+	t.Setenv(EnvDBPath, "")
+	t.Setenv(EnvDB, "")
+	t.Setenv(EnvWorkDir, "")
+	t.Setenv(EnvDataDir, dataDir)
+	cfg = Load()
+	if cfg.DBPath != "/from/config.db" || cfg.WorkDir != "/from/config-work" {
+		t.Fatalf("config should win without specific env: db=%s work=%s", cfg.DBPath, cfg.WorkDir)
+	}
+}
+
+func TestResolveAuxModel(t *testing.T) {
+	cfg := Config{AuxModels: []AuxModel{
+		{Name: "a", Model: "m1", BaseURL: "http://x", Roles: []string{"title"}},
+		{Name: "b", Model: "m2", BaseURL: "http://y", Roles: []string{"summarize"}},
+	}}
+	m, ok := cfg.ResolveAuxModel("title")
+	if !ok || m.Name != "a" {
+		t.Fatalf("title: %+v ok=%v", m, ok)
+	}
+	m, ok = cfg.FindAuxModel("B")
+	if !ok || m.Model != "m2" {
+		t.Fatalf("find: %+v", m)
 	}
 }

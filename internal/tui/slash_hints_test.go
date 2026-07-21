@@ -54,6 +54,51 @@ func TestFormatSlashHint_NoMatch(t *testing.T) {
 	}
 }
 
+func TestCompleteSlashInput(t *testing.T) {
+	// Unique prefix
+	got, ok := completeSlashInput("/hel")
+	if !ok || got != "/help" {
+		t.Fatalf("/hel -> /help, got %q ok=%v", got, ok)
+	}
+	// Args command gets trailing space
+	got, ok = completeSlashInput("/bui")
+	if !ok || got != "/build " {
+		t.Fatalf("/bui -> /build , got %q ok=%v", got, ok)
+	}
+	// Shared prefix /cle -> LCP /clear
+	got, ok = completeSlashInput("/cle")
+	if !ok || got != "/clear" {
+		t.Fatalf("/cle -> /clear LCP, got %q ok=%v", got, ok)
+	}
+	// Cycle from /clear to /clear-history
+	got, ok = completeSlashInput("/clear")
+	if !ok || got != "/clear-history" {
+		t.Fatalf("/clear cycle -> /clear-history, got %q ok=%v", got, ok)
+	}
+	// With args: no change
+	got, ok = completeSlashInput("/build fix tests")
+	if ok || got != "/build fix tests" {
+		t.Fatalf("args should not complete, got %q ok=%v", got, ok)
+	}
+	// Non-slash: no change, caller still consumes tab
+	got, ok = completeSlashInput("hello")
+	if ok {
+		t.Fatalf("non-slash should not rewrite, got %q", got)
+	}
+}
+
+func TestHandleSlashTabComplete(t *testing.T) {
+	m := Model{textInput: newTextInput()}
+	m.textInput.SetValue("/the")
+	_, handled := m.handleSlashTabComplete()
+	if !handled {
+		t.Fatal("tab must be handled")
+	}
+	if m.textInput.Value() != "/theme " {
+		t.Fatalf("value=%q", m.textInput.Value())
+	}
+}
+
 func containsAll(haystack []string, needles ...string) bool {
 	for _, n := range needles {
 		found := false
