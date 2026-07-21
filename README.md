@@ -1,7 +1,6 @@
 # Antisthenes
 
 Minimal Go-based AI agent with streaming tool calling, persistent memory, and TUI.
-Minimal Go-based AI agent with streaming tool calling, persistent memory, and a rich terminal UI.
 
 **Version**: 0.3.2 (injected at build time)
 
