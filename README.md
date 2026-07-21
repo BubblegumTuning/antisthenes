@@ -1,5 +1,6 @@
 # Antisthenes
 
+Minimal Go-based AI agent with streaming tool calling, persistent memory, and TUI.
 Minimal Go-based AI agent with streaming tool calling, persistent memory, and a rich terminal UI.
 
 **Version**: 0.3.2 (injected at build time)
@@ -65,6 +66,9 @@ cp config.example.json config.json
 # edit endpoints, model names, and options
 ```
 
+See [docs/configuration.md](docs/configuration.md)
+
+## Building
 See [docs/configuration.md](docs/configuration.md). `config.json` is gitignored; do not commit secrets.
 
 ## TUI
