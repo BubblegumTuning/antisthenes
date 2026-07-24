@@ -1,11 +1,12 @@
 package tui
 
 import (
+	"testing"
+
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/nanami/antisthenes/config"
-	"testing"
 )
 
 func TestUpdate_KeyEnter_ClearsMultilineTextInput(t *testing.T) {

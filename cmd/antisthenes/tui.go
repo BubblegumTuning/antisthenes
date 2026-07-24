@@ -21,6 +21,7 @@ import (
 )
 
 func runTUI(cfg config.Config) {
+	os.Setenv("ANTISTHENES_AGENT_CONTEXT", "1")
 	fmt.Printf("Antisthenes %s - Minimal AI Agent (TUI)\n", version)
 	fmt.Println("Delegate agents available via delegate_task tool")
 

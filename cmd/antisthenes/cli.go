@@ -37,6 +37,7 @@ func handleSubcommand(args []string, cfg config.Config) bool {
 			os.Exit(1)
 		}
 		defer store.Close()
+
 		sessions, err := store.ListSessionInfos(20)
 		if err != nil {
 			fmt.Println("Error listing sessions:", err)
@@ -56,6 +57,7 @@ func handleSubcommand(args []string, cfg config.Config) bool {
 		fmt.Fprintln(os.Stderr, "Starting Antisthenes MCP server (stdio)...")
 		cfg := config.Load()
 		reg := newToolRegistry(cfg, mcpServerRegistryOptions())
+
 		srv := mcp.NewServerWithVersion(reg, version)
 		if err := srv.Run(); err != nil {
 			fmt.Fprintln(os.Stderr, "MCP server error:", err)
@@ -74,6 +76,7 @@ Usage:
   antisthenes -P -             Read prompt from stdin
   antisthenes -P @file.txt     Read prompt from file
   antisthenes --prompt-file f  Read prompt from file
+  antisthenes -P "text" --yolo DANGEROUS: bypass all approval checks (trusted use only)
 
 Subcommands:
   version   Print version
@@ -88,6 +91,7 @@ Examples:
   echo "Summarise this log" | antisthenes -P -
   antisthenes -P @prompt.txt
   antisthenes --prompt-file prompt.txt
+  antisthenes -P "use nmap_scan" --yolo
 `)
 		return true
 	case "model":

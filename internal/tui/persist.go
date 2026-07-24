@@ -6,11 +6,6 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// loadSessionFromStore restores the active window from SQLite (compat wrapper).
-func (m *Model) loadSessionFromStore() {
-	m.loadWindowFromStore(m.activeWindow)
-}
-
 // persistNewMessages writes messages added since the last persist checkpoint for the active window.
 func (m *Model) persistNewMessages() {
 	m.persistWindowMessages(m.activeWindow)
@@ -33,11 +28,6 @@ func (m *Model) clearSessionMemory() {
 			w.Label = fmt.Sprintf("session-%d", m.activeWindow+1)
 		}
 	}
-}
-
-// refreshNudges reloads recent nudges for the active window.
-func (m *Model) refreshNudges() {
-	m.refreshWindowNudges(m.activeWindow)
 }
 
 // repersistAllMessages replaces stored session history with current in-memory messages.

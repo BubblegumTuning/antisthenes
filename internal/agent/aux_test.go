@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -50,7 +51,7 @@ func TestRegisterAuxExecutorsAndListTools(t *testing.T) {
 
 func TestGenerateSessionTitle_HeuristicOnly(t *testing.T) {
 	// No aux models → heuristic path.
-	title := GenerateSessionTitle(nil, config.Config{}, "rename demo database file")
+	title := GenerateSessionTitle(context.TODO(), config.Config{}, "rename demo database file")
 	if title == "" {
 		t.Fatal("empty title")
 	}

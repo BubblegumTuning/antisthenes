@@ -63,43 +63,82 @@ func TestNewPromptBuilder_NoSoulFile(t *testing.T) {
 	}
 }
 
-func TestEstimateTokens(t *testing.T) {
-	tests := []struct {
-		name string
-		msgs []openai.ChatCompletionMessage
-		want int
-	}{
-		{
-			name: "empty",
-			msgs: nil,
-			want: 0,
-		},
-		{
-			name: "simple",
-			msgs: []openai.ChatCompletionMessage{{Role: "user", Content: "hello world foo bar"}},
-			want: 8, // 4 words /3 *4 = ~5 but code 4/3*4=5? wait calc: len(Fields)=4 ,4/3=1 *4=4 ? test actual
-		},
-		{
-			name: "multi message",
-			msgs: []openai.ChatCompletionMessage{
-				{Content: "one two"},
-				{Content: "three"},
-			},
-			want: 4, // rough
-		},
+func TestEstimateTokensRough(t *testing.T) {
+	if EstimateTokensRough("") != 0 {
+		t.Fatal("empty")
 	}
+	if got := EstimateTokensRough("ab"); got != 1 { // (2+3)/4 = 1
+		t.Fatalf("short: got %d", got)
+	}
+	if got := EstimateTokensRough("abcd"); got != 1 { // (4+3)/4 = 1
+		t.Fatalf("four: got %d", got)
+	}
+	if got := EstimateTokensRough(strings.Repeat("x", 4000)); got != 1000 {
+		t.Fatalf("4k chars: got %d want 1000", got)
+	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := EstimateTokens(tt.msgs)
-			// since rough approx, just check non-negative and reasonable
-			if got < 0 {
-				t.Errorf("negative tokens")
-			}
-			if tt.name == "simple" && got == 0 {
-				t.Errorf("simple gave 0")
-			}
-		})
+func TestEstimateTokens(t *testing.T) {
+	if EstimateTokens(nil) != 0 {
+		t.Fatal("nil")
+	}
+	// Dense text must not collapse to 0 (old word-based formula did).
+	dense := []openai.ChatCompletionMessage{{Role: "user", Content: strings.Repeat("x", 4000)}}
+	if got := EstimateTokens(dense); got < 900 {
+		t.Fatalf("dense undercount: %d", got)
+	}
+	// Tool-call-only assistant message (empty Content) must count arguments.
+	tc := []openai.ChatCompletionMessage{{
+		Role: "assistant",
+		ToolCalls: []openai.ToolCall{{
+			ID:   "call_1",
+			Type: "function",
+			Function: openai.FunctionCall{
+				Name:      "terminal",
+				Arguments: `{"command":"ls -la /home/nanami"}`,
+			},
+		}},
+	}}
+	if got := EstimateTokens(tc); got < 10 {
+		t.Fatalf("tool_calls undercount: %d", got)
+	}
+	// Simple text: role+content chars//4
+	simple := []openai.ChatCompletionMessage{{Role: "user", Content: "hello world foo bar"}}
+	got := EstimateTokens(simple)
+	if got <= 0 {
+		t.Fatal("simple gave 0")
+	}
+	// Must exceed naive old formula words//3*4 for this string (was 4).
+	if got < 5 {
+		t.Fatalf("simple too low: %d", got)
+	}
+}
+
+func TestEstimateRequestTokensIncludesTools(t *testing.T) {
+	msgs := []openai.ChatCompletionMessage{{Role: "user", Content: "hi"}}
+	base := EstimateRequestTokens("sys", msgs, nil)
+	tools := []openai.Tool{{
+		Type: openai.ToolTypeFunction,
+		Function: &openai.FunctionDefinition{
+			Name:        "terminal",
+			Description: strings.Repeat("d", 400),
+			Parameters:  map[string]any{"type": "object", "properties": map[string]any{"command": map[string]any{"type": "string"}}},
+		},
+	}}
+	withTools := EstimateRequestTokens("sys", msgs, tools)
+	if withTools <= base {
+		t.Fatalf("tools should add tokens: base=%d with=%d", base, withTools)
+	}
+}
+
+func TestContextTokensPrefersAPI(t *testing.T) {
+	msgs := []openai.ChatCompletionMessage{{Role: "user", Content: "hi"}}
+	est := EstimateRequestTokens("sys", msgs, nil)
+	if got := ContextTokens(0, "sys", msgs, nil); got != est {
+		t.Fatalf("fallback: got %d want %d", got, est)
+	}
+	if got := ContextTokens(12345, "sys", msgs, nil); got != 12345 {
+		t.Fatalf("api prefer: got %d", got)
 	}
 }
 
@@ -185,7 +224,7 @@ func TestWorkSummaries_Hermetic(t *testing.T) {
 		"work_dir": workDir,
 	}
 	data, _ := json.MarshalIndent(cfg, "", "  ")
-	_ = os.WriteFile("config.json", data, 0600)
+	_ = os.WriteFile("config.json", data, 0o600)
 
 	session := "sess-001"
 	summary := "# Task done\n- item1"
@@ -230,7 +269,7 @@ func TestLoadSoulPrompt_Success(t *testing.T) {
 	defer func() { _ = os.Chdir(origWD) }()
 
 	soulContent := "You are a special soul prompt for compression tests.\nBe concise."
-	if err := os.WriteFile("SOUL.md", []byte(soulContent), 0600); err != nil {
+	if err := os.WriteFile("SOUL.md", []byte(soulContent), 0o600); err != nil {
 		t.Fatalf("write SOUL.md: %v", err)
 	}
 

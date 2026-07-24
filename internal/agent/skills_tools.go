@@ -58,12 +58,12 @@ func registerSkillsTools(r *ToolRegistry) {
 		}
 
 		skillDir := "skills/" + name
-		if err := os.MkdirAll(skillDir, 0755); err != nil {
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
 			return "", err
 		}
 
 		content := fmt.Sprintf("# %s\n\n%s\n", name, desc)
-		if err := os.WriteFile(skillDir+"/SKILL.md", []byte(content), 0644); err != nil {
+		if err := os.WriteFile(skillDir+"/SKILL.md", []byte(content), 0o644); err != nil {
 			return "", err
 		}
 

@@ -13,7 +13,8 @@ func (s *Store) LoadTasks() (map[string]struct {
 	Schedule string
 	Command  string
 	NextRun  time.Time
-}, error) {
+}, error,
+) {
 	rows, err := s.db.Query(`SELECT id, schedule, command, next_run FROM scheduled_tasks`)
 	if err != nil {
 		return nil, err

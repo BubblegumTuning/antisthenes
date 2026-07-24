@@ -41,7 +41,7 @@ func registerFSTools(r *ToolRegistry) {
 			}
 			return "create_dir: Approval required. Use approve_tool.", nil
 		}
-		if err := os.MkdirAll(path, 0755); err != nil {
+		if err := os.MkdirAll(path, 0o755); err != nil {
 			return "", err
 		}
 		return "Directory created: " + path, nil
@@ -95,7 +95,7 @@ func registerFSTools(r *ToolRegistry) {
 			return "write_file: " + err.Error(), nil
 		}
 
-		perm := os.FileMode(0644)
+		perm := os.FileMode(0o644)
 		if modeStr, ok := args["mode"].(string); ok && strings.TrimSpace(modeStr) != "" {
 			perm, err = parseFileMode(strings.TrimSpace(modeStr))
 			if err != nil {
@@ -105,7 +105,7 @@ func registerFSTools(r *ToolRegistry) {
 
 		// Auto-create parent directories (per create_dir plan item)
 		if dir := filepath.Dir(path); dir != "" && dir != "." {
-			if err := os.MkdirAll(dir, 0755); err != nil {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
 				return "", err
 			}
 		}
@@ -298,7 +298,7 @@ func validateRelativePath(path string) error {
 
 func copyFilePath(src, dst string) error {
 	if dir := filepath.Dir(dst); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 	}

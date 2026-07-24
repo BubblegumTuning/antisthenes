@@ -72,6 +72,25 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.IterativeMaxIterations() != DefaultIterativeMaxIterations {
 		t.Errorf("max_iterations default: got %d", cfg.IterativeMaxIterations())
 	}
+	if cfg.ResolvedHTTPUserAgent() != DefaultHTTPUserAgent {
+		t.Errorf("HTTP UA default: got %q", cfg.ResolvedHTTPUserAgent())
+	}
+	if cfg.HTTPUserAgent != DefaultHTTPUserAgent {
+		t.Errorf("DefaultConfig.HTTPUserAgent: got %q", cfg.HTTPUserAgent)
+	}
+}
+
+func TestResolvedHTTPUserAgent(t *testing.T) {
+	if (Config{}).ResolvedHTTPUserAgent() != DefaultHTTPUserAgent {
+		t.Fatalf("empty config should resolve default")
+	}
+	if (Config{HTTPUserAgent: "  "}).ResolvedHTTPUserAgent() != DefaultHTTPUserAgent {
+		t.Fatalf("whitespace should resolve default")
+	}
+	const custom = "MyBot/2.0 (+https://example.test)"
+	if (Config{HTTPUserAgent: custom}).ResolvedHTTPUserAgent() != custom {
+		t.Fatalf("custom UA not preserved")
+	}
 }
 
 func TestIterativeThresholdAccessors(t *testing.T) {
@@ -206,7 +225,7 @@ func TestLoad_EmptyAgentNameInFile(t *testing.T) {
 	os.Chdir(tmp)
 	defer os.Chdir(orig)
 
-	if err := os.WriteFile("config.json", []byte(`{"agent_name":""}`), 0600); err != nil {
+	if err := os.WriteFile("config.json", []byte(`{"agent_name":""}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg := Load()
@@ -222,7 +241,7 @@ func TestLoad_MalformedJSON(t *testing.T) {
 	defer func() { _ = os.Chdir(origWD) }()
 
 	// Write invalid JSON
-	if err := os.WriteFile("config.json", []byte(`{ "agent_name": "bad", "broken": `), 0600); err != nil {
+	if err := os.WriteFile("config.json", []byte(`{ "agent_name": "bad", "broken": `), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -245,7 +264,7 @@ func TestLoad_PartialConfig(t *testing.T) {
   "active_endpoint": "local",
   "endpoints": [{"name": "local", "model": "custom", "base_url": "http://example"}]
 }`
-	_ = os.WriteFile("config.json", []byte(raw), 0600)
+	_ = os.WriteFile("config.json", []byte(raw), 0o600)
 
 	cfg := Load()
 	if cfg.AgentName != "Partial" {
@@ -272,7 +291,7 @@ func TestLoad_InputHistoryExplicitFalse(t *testing.T) {
 	defer func() { _ = os.Chdir(origWD) }()
 
 	raw := `{"agent_name":"T","input_history_enabled":false,"input_history_size":10}`
-	if err := os.WriteFile("config.json", []byte(raw), 0600); err != nil {
+	if err := os.WriteFile("config.json", []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg := Load()
@@ -299,7 +318,7 @@ func TestPathEnvOverrides(t *testing.T) {
 	t.Setenv(EnvDB, "")
 	t.Setenv(EnvWorkDir, "")
 	// Empty config → data dir defaults
-	_ = os.WriteFile("config.json", []byte(`{"agent_name":"E"}`), 0600)
+	_ = os.WriteFile("config.json", []byte(`{"agent_name":"E"}`), 0o600)
 	cfg := Load()
 	if cfg.DBPath != filepath.Join(dataDir, "antisthenes.db") {
 		t.Fatalf("data dir db: got %s", cfg.DBPath)
@@ -316,7 +335,7 @@ func TestPathEnvOverrides(t *testing.T) {
 	}
 
 	// Config path ignored when specific env set
-	_ = os.WriteFile("config.json", []byte(`{"db_path":"/from/config.db","work_dir":"/from/config-work"}`), 0600)
+	_ = os.WriteFile("config.json", []byte(`{"db_path":"/from/config.db","work_dir":"/from/config-work"}`), 0o600)
 	cfg = Load()
 	if cfg.DBPath != dbOverride {
 		t.Fatalf("env must win over config db: %s", cfg.DBPath)

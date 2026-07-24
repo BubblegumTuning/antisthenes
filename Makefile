@@ -9,10 +9,10 @@
 #   make clean     - Remove build artifacts
 
 GO         ?= go
-# Prefer annotated/lightweight git tag (v0.3.2 → 0.3.2). Without tags,
+# Prefer annotated/lightweight git tag (v0.3.6 → 0.3.2). Without tags,
 # `git describe --tags` fails and we fall back to the release default (do not
 # use --always: that would inject a bare commit hash as the version).
-VERSION_RAW := $(shell git describe --tags --dirty 2>/dev/null || echo "v0.3.2")
+VERSION_RAW := $(shell git describe --tags --dirty 2>/dev/null || echo "v0.3.6")
 VERSION     := $(shell echo "$(VERSION_RAW)" | sed 's/^v//')
 BUILD_TIME  := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 

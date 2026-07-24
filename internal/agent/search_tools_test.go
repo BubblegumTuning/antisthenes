@@ -16,7 +16,7 @@ func TestToolRegistry_SearchFilesMaxResults(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		lines = append(lines, "needle line "+string(rune('0'+i)))
 	}
-	if err := os.WriteFile("many.txt", []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
+	if err := os.WriteFile("many.txt", []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

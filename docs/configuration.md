@@ -39,5 +39,6 @@ Example local endpoint:
   - `context_remind_percent` (default **55**) — when context usage exceeds this %, write a concise progress summary to the work log
   - `context_summary_percent` (default **60**) — when context usage exceeds this %, force a fuller summary/refresh before more edits (clamped to at least the remind percent)
   - `max_iterations` (default **40**) — hard cap on **Execute** phases across multi-cycle PER (re-Plan cycles continue until DoD, FAILED, cancel, or this many Executes)
+- `http_user_agent` — default `User-Agent` for `http_fetch` when the tool call does not set one. Built-in default: `Mozilla/4.0 (compatible; MSIE 5.5; Windows 98; 56K Modem; Dial-up; Netscape 4.7 envy)` (avoids Go’s bare `Go-http-client/1.1`, which some sites such as Wikipedia reject). Override in `config.json`, or pass `headers.User-Agent` on a single call.
 
 The file is git-ignored. Never commit real credentials.

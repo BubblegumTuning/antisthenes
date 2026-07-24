@@ -10,11 +10,11 @@ import (
 func TestNewSkillIndex_JSON(t *testing.T) {
 	root := t.TempDir()
 	skillsDir := filepath.Join(root, "skills")
-	if err := os.MkdirAll(skillsDir, 0755); err != nil {
+	if err := os.MkdirAll(skillsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	idxJSON := `{"skills":{"test":{"name":"test","description":"Test skill","path":"skills/test"}}}`
-	if err := os.WriteFile(filepath.Join(skillsDir, "index.json"), []byte(idxJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "index.json"), []byte(idxJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -30,14 +30,14 @@ func TestNewSkillIndex_JSON(t *testing.T) {
 func TestNewSkillIndex_Scan(t *testing.T) {
 	root := t.TempDir()
 	skillsDir := filepath.Join(root, "skills")
-	if err := os.MkdirAll(filepath.Join(skillsDir, "demo"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(skillsDir, "demo"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(skillsDir, "demo", "SKILL.md"), []byte("Demo skill line one\nrest"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "demo", "SKILL.md"), []byte("Demo skill line one\nrest"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Dir without SKILL.md must be ignored.
-	if err := os.MkdirAll(filepath.Join(skillsDir, "empty"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(skillsDir, "empty"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -56,10 +56,10 @@ func TestNewSkillIndex_Scan(t *testing.T) {
 func TestListAndLoad(t *testing.T) {
 	root := t.TempDir()
 	skillsDir := filepath.Join(root, "skills")
-	if err := os.MkdirAll(filepath.Join(skillsDir, "alpha"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(skillsDir, "alpha"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(skillsDir, "alpha", "SKILL.md"), []byte("Alpha"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "alpha", "SKILL.md"), []byte("Alpha"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -80,10 +80,10 @@ func TestListAndLoad(t *testing.T) {
 func TestGenerateIndex(t *testing.T) {
 	root := t.TempDir()
 	skillsDir := filepath.Join(root, "skills")
-	if err := os.MkdirAll(filepath.Join(skillsDir, "beta"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(skillsDir, "beta"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(skillsDir, "beta", "SKILL.md"), []byte("Beta"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "beta", "SKILL.md"), []byte("Beta"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,21 +100,21 @@ func TestGenerateIndex(t *testing.T) {
 func TestGenerateIndex_RescansStaleJSON(t *testing.T) {
 	root := t.TempDir()
 	skillsDir := filepath.Join(root, "skills")
-	if err := os.MkdirAll(filepath.Join(skillsDir, "old"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(skillsDir, "old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(skillsDir, "old", "SKILL.md"), []byte("# Old\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "old", "SKILL.md"), []byte("# Old\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Stale index omits "new" skill that will be added on disk.
 	stale := `{"skills":{"old":{"name":"old","description":"# Old","path":"skills/old"}}}`
-	if err := os.WriteFile(filepath.Join(skillsDir, "index.json"), []byte(stale), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "index.json"), []byte(stale), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(skillsDir, "new"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(skillsDir, "new"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(skillsDir, "new", "SKILL.md"), []byte("# New skill\nbody"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, "new", "SKILL.md"), []byte("# New skill\nbody"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

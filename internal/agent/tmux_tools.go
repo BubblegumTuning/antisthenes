@@ -251,7 +251,13 @@ func ensureTmuxSession(host *TmuxHost, session string) (created bool, errMsg str
 	}
 	// Default interactive shell (login/profile). Avoid bash --norc here: on some
 	// hosts send/capture against a norc pane yields empty/corrupt buffers.
-	out, e := runTmux(host, "new-session", "-d", "-s", session)
+	// Isolate shell history so agent/test send-keys (echo markers, etc.) do not
+	// append to the operator's ~/.bash_history (tmux -e needs 3.2+; we require 3.7+).
+	out, e := runTmux(host, "new-session", "-d", "-s", session,
+		"-e", "HISTFILE=/dev/null",
+		"-e", "HISTSIZE=0",
+		"-e", "HISTFILESIZE=0",
+	)
 	if e != nil && !strings.Contains(out, "duplicate session") {
 		return false, out + "\nError: " + e.Error(), e
 	}

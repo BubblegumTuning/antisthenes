@@ -71,14 +71,16 @@ func TestHandleIterativeLogProgress_AppliesAndStale(t *testing.T) {
 	}
 	m.windows[0].iterState = IterExecuting
 	m.windows[0].iterGen = 2
-	m.handleIterativeLogProgress(iterativeLogProgressMsg{win: 0,
+	m.handleIterativeLogProgress(iterativeLogProgressMsg{
+		win: 0,
 		gen: 1, chunk: "stale\n", newOffset: 10,
 	})
 	if m.windows[0].iterLogOffset != 0 || m.windows[0].iterProgressSnippet != "" || len(m.windows[0].Messages) != 0 {
 		t.Fatalf("stale should be ignored: offset=%d snip=%q msgs=%d", m.windows[0].iterLogOffset, m.windows[0].iterProgressSnippet, len(m.windows[0].Messages))
 	}
 
-	m.handleIterativeLogProgress(iterativeLogProgressMsg{win: 0,
+	m.handleIterativeLogProgress(iterativeLogProgressMsg{
+		win: 0,
 		gen: 2, chunk: "step A done\nstep B done\n", newOffset: 24,
 	})
 	if m.windows[0].iterLogOffset != 24 {
@@ -147,7 +149,7 @@ func TestHandleIterativeLogTick_SchedulesReadWhenExecuting(t *testing.T) {
 				if !strings.Contains(p.chunk, "hello log") {
 					t.Fatalf("chunk=%q", p.chunk)
 				}
-				sawProgress = true
+				_ = true // progress received
 				return
 			}
 		case <-time.After(20 * time.Millisecond):

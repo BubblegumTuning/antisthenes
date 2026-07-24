@@ -77,6 +77,14 @@ type Config struct {
 	NmapEnabled bool `json:"nmap_enabled"`
 	// NetworkStatusEnabled registers network_status on the tool registry (default false when omitted).
 	NetworkStatusEnabled bool `json:"network_status_enabled"`
+	// TmuxEnabled registers tmux_* tools (default true).
+	TmuxEnabled bool `json:"tmux_enabled"`
+	// AnsibleEnabled registers ansible_* tools (default true).
+	AnsibleEnabled bool `json:"ansible_enabled"`
+	// GitEnabled registers git_* tools (default true).
+	GitEnabled bool `json:"git_enabled"`
+	// InstallToolEnabled registers install_tool and related (default true).
+	InstallToolEnabled bool `json:"install_tool_enabled"`
 	// Phase 7 per DESIGN-TUI.md: input history (Up/Down in edit box); file-backed under WorkDir.
 	InputHistoryEnabled bool `json:"input_history_enabled"`
 	InputHistorySize    int  `json:"input_history_size"`
@@ -85,7 +93,15 @@ type Config struct {
 	Colors           TUIColors `json:"colors"`
 	// Iterative: /iterative worker context thresholds and max iterations (see IterativeSettings).
 	Iterative IterativeSettings `json:"iterative"`
+	// HTTPUserAgent is the default User-Agent for http_fetch when the tool call omits that header.
+	// Empty → DefaultHTTPUserAgent (see ResolvedHTTPUserAgent).
+	HTTPUserAgent string `json:"http_user_agent,omitempty"`
 }
+
+// DefaultHTTPUserAgent is sent by http_fetch when config.http_user_agent is empty
+// and the tool call does not set a User-Agent header. Chosen so sites that require
+// a non-empty / non-Go default UA (e.g. Wikipedia) accept the request.
+const DefaultHTTPUserAgent = "Mozilla/4.0 (compatible; MSIE 5.5; Windows 98; 56K Modem; Dial-up; Netscape 4.7 envy)"
 
 // DefaultConfig returns a configuration with both local and xAI endpoints.
 func DefaultConfig() Config {
@@ -127,7 +143,17 @@ func DefaultConfig() Config {
 			ContextSummaryPercent: DefaultIterativeContextSummaryPercent,
 			MaxIterations:         DefaultIterativeMaxIterations,
 		},
+		HTTPUserAgent: DefaultHTTPUserAgent,
 	}
+}
+
+// ResolvedHTTPUserAgent returns the http_fetch default User-Agent.
+// Empty or whitespace config values fall back to DefaultHTTPUserAgent.
+func (c Config) ResolvedHTTPUserAgent() string {
+	if s := strings.TrimSpace(c.HTTPUserAgent); s != "" {
+		return s
+	}
+	return DefaultHTTPUserAgent
 }
 
 // IterativeContextRemindPercent returns the remind threshold (1–100), default 55.
@@ -170,6 +196,26 @@ func (c Config) NmapOn() bool {
 // NetworkStatusOn reports whether network_status is registered (default false when config key omitted).
 func (c Config) NetworkStatusOn() bool {
 	return c.NetworkStatusEnabled
+}
+
+// TmuxOn reports whether tmux_* tools are registered (default true).
+func (c Config) TmuxOn() bool {
+	return c.TmuxEnabled
+}
+
+// AnsibleOn reports whether ansible_* tools are registered (default true).
+func (c Config) AnsibleOn() bool {
+	return c.AnsibleEnabled
+}
+
+// GitOn reports whether git_* tools are registered (default true).
+func (c Config) GitOn() bool {
+	return c.GitEnabled
+}
+
+// InstallToolOn reports whether install_tool is registered (default true).
+func (c Config) InstallToolOn() bool {
+	return c.InstallToolEnabled
 }
 
 // InputHistoryOn reports whether Up/Down input history is enabled (DESIGN-TUI.md phase 7).
@@ -234,6 +280,7 @@ func Load() Config {
 	applyInputHistoryDefaults(&cfg, data)
 	applyMarkdownDefaults(&cfg, data)
 	applyNmapDefaults(&cfg, data)
+	applyToolFamilyDefaults(&cfg, data)
 	cfg.Colors.ApplyDefaults()
 	ensureDataDirs(cfg)
 	return cfg
@@ -269,7 +316,7 @@ func Save(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile("config.json", data, 0600)
+	return os.WriteFile("config.json", data, 0o600)
 }
 
 // GetActiveEndpoint returns the currently active endpoint.
@@ -283,4 +330,25 @@ func (c Config) GetActiveEndpoint() Endpoint {
 		return c.Endpoints[0]
 	}
 	return Endpoint{}
+}
+
+// applyToolFamilyDefaults sets the new family flags to true when the key is omitted
+// (preserves backward compatibility for existing configs).
+func applyToolFamilyDefaults(cfg *Config, raw []byte) {
+	if len(raw) == 0 {
+		return
+	}
+	s := string(raw)
+	if !strings.Contains(s, `"tmux_enabled"`) {
+		cfg.TmuxEnabled = true
+	}
+	if !strings.Contains(s, `"ansible_enabled"`) {
+		cfg.AnsibleEnabled = true
+	}
+	if !strings.Contains(s, `"git_enabled"`) {
+		cfg.GitEnabled = true
+	}
+	if !strings.Contains(s, `"install_tool_enabled"`) {
+		cfg.InstallToolEnabled = true
+	}
 }

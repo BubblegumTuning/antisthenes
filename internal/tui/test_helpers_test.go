@@ -15,10 +15,6 @@ func enableTestColors(t *testing.T) {
 	t.Cleanup(func() { lipgloss.SetColorProfile(old) })
 }
 
-func modelPtr(m Model) *Model {
-	return &m
-}
-
 func modelFromUpdate(m *Model, msg tea.Msg) (*Model, tea.Cmd) {
 	out, cmd := m.Update(msg)
 	return out.(*Model), cmd

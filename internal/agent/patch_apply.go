@@ -77,7 +77,7 @@ func applyPatchUnified(diff, pathOverride string) error {
 		return err
 	}
 	content := joinLines(lines)
-	if err := os.WriteFile(target, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", target, err)
 	}
 	return nil

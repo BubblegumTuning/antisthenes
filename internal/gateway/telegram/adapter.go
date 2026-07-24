@@ -119,7 +119,7 @@ func (a *Adapter) getUpdates(ctx context.Context) ([]Update, error) {
 }
 
 func (a *Adapter) SendMessage(ctx context.Context, chatID, text string) error {
-	return a.sender.SendMessage(ctx, text)
+	return a.sender.SendMessage(ctx, chatID, text)
 }
 
 func (a *Adapter) Incoming() <-chan gateway.MessageEvent {

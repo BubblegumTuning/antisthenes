@@ -85,44 +85,6 @@ func agentStartBatch(m *Model, winIdx int, repaint bool) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// buildScaffold holds paths for design, definition-of-done, and work-log files.
-type buildScaffold struct {
-	DesignFile string
-	DodFile    string
-	LogFile    string
-}
-
-func scaffoldSlug(text string, maxLen int, defaultSlug string) string {
-	if len(text) > maxLen {
-		return strings.ToLower(strings.ReplaceAll(text[:maxLen], " ", "_"))
-	}
-	return defaultSlug
-}
-
-func scaffoldFilePaths(targetDir, slug string) (designFile, dodFile, logFile string) {
-	timestamp := time.Now().Format("20060102-150405")
-	designFile = fmt.Sprintf("%s/%s_%s_design.md", targetDir, timestamp, slug)
-	dodFile = fmt.Sprintf("%s/%s_%s_definition_of_done.md", targetDir, timestamp, slug)
-	logFile = fmt.Sprintf("%s/%s_%s.log", targetDir, timestamp, slug)
-	return designFile, dodFile, logFile
-}
-
-func writeScaffoldFiles(targetDir string, designFile, dodFile, logFile, designContent, dodContent, logContent string) error {
-	if err := os.MkdirAll(targetDir, 0o700); err != nil {
-		return err
-	}
-	if err := os.WriteFile(designFile, []byte(designContent), 0o644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(dodFile, []byte(dodContent), 0o644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(logFile, []byte(logContent), 0o644); err != nil {
-		return err
-	}
-	return nil
-}
-
 func buildFastPathInstruction(designFile, dodFile, logFile string) string {
 	return fmt.Sprintf(`Read the following files and proceed to work autonomously:
 
@@ -618,36 +580,6 @@ Begin now.`, targetDir, designFile, dodFile, logFile, targetDir, remind, summary
 
 func joinIterPath(dir, name string) string {
 	return filepath.Join(dir, name)
-}
-
-// startIterativeWorker remains a thin compatibility wrapper (single-pass delegate).
-// New flows use runIterativePER via startIterativePERAsync.
-func startIterativeWorker(ctx context.Context, appCfg config.Config, goal, targetDir, designFile, dodFile, logFile, executor string) string {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	_ = goal
-	summary, _, err := runIterativePER(ctx, perRunOpts{
-		AppCfg:          appCfg,
-		ProjectName:     filepath.Base(targetDir),
-		TargetDir:       targetDir,
-		Goal:            goal,
-		DesignFile:      designFile,
-		DodFile:         dodFile,
-		LogFile:         logFile,
-		PlanFile:        filepath.Join(targetDir, perPlanFileName),
-		Executor:        executor,
-		Mode:            perModeFull,
-		RetryBudget:     perDefaultRetryBudget,
-		MaxExecAttempts: appCfg.IterativeMaxIterations(),
-	})
-	if err != nil && summary == "" {
-		return formatPERInterruptOrErr(ctx, "full", err)
-	}
-	if err != nil {
-		return summary
-	}
-	return summary
 }
 
 // debugLog writes timestamped entries to log/debug.log when cfg.DebugLogging is true.

@@ -1,9 +1,10 @@
 package agent
 
 import (
-	openai "github.com/sashabaranov/go-openai"
 	"strings"
 	"sync"
+
+	openai "github.com/sashabaranov/go-openai"
 )
 
 // Executor represents a named execution target (deep-thinker, coder, etc.).

@@ -1,13 +1,14 @@
 package tui
 
 import (
+	"os"
+	"strings"
+	"testing"
+
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/nanami/antisthenes/config"
 	openai "github.com/sashabaranov/go-openai"
-	"os"
-	"strings"
-	"testing"
 )
 
 func TestRenderChat_AssistantLabelVisible(t *testing.T) {

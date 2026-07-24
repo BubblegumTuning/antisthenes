@@ -31,3 +31,30 @@ func NewToolRegistry() *ToolRegistry {
 
 // Core methods (Register, Call, Execute, ToOpenAITools) moved to registry.go (Phase 3 first micro-step per refactoring_plan.md).
 // NewToolRegistry remains the single source and entry point for all registrations.
+
+// Thin public wrappers for config-gated registration (2026-07-22)
+// These allow newToolRegistry() to conditionally register tool families.
+
+func RegisterTmuxTools(r *ToolRegistry, enabled bool) {
+	if enabled {
+		registerTmuxTools(r)
+	}
+}
+
+func RegisterAnsibleTools(r *ToolRegistry, enabled bool) {
+	if enabled {
+		registerAnsibleTools(r)
+	}
+}
+
+func RegisterGitTools(r *ToolRegistry, enabled bool) {
+	if enabled {
+		registerGitTools(r)
+	}
+}
+
+func RegisterInstallTool(r *ToolRegistry, enabled bool) {
+	if enabled {
+		registerInstallTools(r)
+	}
+}

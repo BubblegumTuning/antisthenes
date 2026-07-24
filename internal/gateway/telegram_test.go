@@ -29,7 +29,7 @@ func TestTelegramSender_Send(t *testing.T) {
 	// To test without real net, we can test error paths and success with real? But for hermetic, test config error and use test server by temp patch?
 	// For now, test error case and note that full send is integration.
 	s := NewTelegramSender(TelegramConfig{})
-	err := s.SendMessage(context.Background(), "hi")
+	err := s.SendMessage(context.Background(), "", "hi")
 	if err == nil {
 		t.Error("expected error for no config")
 	}

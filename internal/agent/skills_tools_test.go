@@ -11,7 +11,7 @@ func TestToolRegistry_SkillsTools(t *testing.T) {
 	orig, _ := os.Getwd()
 	os.Chdir(tmp)
 	defer os.Chdir(orig)
-	os.MkdirAll("skills", 0755)
+	os.MkdirAll("skills", 0o755)
 	defer os.RemoveAll("skills")
 
 	r := NewToolRegistry()

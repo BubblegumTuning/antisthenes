@@ -114,5 +114,5 @@ func GenerateIndex(root string) error {
 	}
 
 	indexPath := filepath.Join(root, "skills", "index.json")
-	return os.WriteFile(indexPath, data, 0644)
+	return os.WriteFile(indexPath, data, 0o644)
 }

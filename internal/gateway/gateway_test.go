@@ -1,14 +1,14 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-
-	"context"
-	"github.com/nanami/antisthenes/internal/agent"
 	"testing"
 	"time"
+
+	"github.com/nanami/antisthenes/internal/agent"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -26,16 +26,19 @@ func (f *fakeAdapter) Start(ctx context.Context) error {
 	f.started = true
 	return nil
 }
+
 func (f *fakeAdapter) SendMessage(ctx context.Context, chatID, text string) error {
 	f.sent = append(f.sent, text)
 	return nil
 }
+
 func (f *fakeAdapter) Incoming() <-chan MessageEvent {
 	if f.incoming == nil {
 		f.incoming = make(chan MessageEvent)
 	}
 	return f.incoming
 }
+
 func (f *fakeAdapter) Stop() error {
 	f.stopped = true
 	return nil

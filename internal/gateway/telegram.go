@@ -32,15 +32,19 @@ func NewTelegramSender(cfg TelegramConfig) *TelegramSender {
 }
 
 // SendMessage sends a plain text message via Telegram Bot API.
-func (t *TelegramSender) SendMessage(ctx context.Context, text string) error {
-	if t.cfg.BotToken == "" || t.cfg.ChatID == "" {
+// chatID overrides the configured one if non-empty (supports dynamic replies).
+func (t *TelegramSender) SendMessage(ctx context.Context, chatID, text string) error {
+	if chatID == "" {
+		chatID = t.cfg.ChatID
+	}
+	if t.cfg.BotToken == "" || chatID == "" {
 		return fmt.Errorf("telegram not configured")
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.cfg.BotToken)
 
 	payload := map[string]string{
-		"chat_id": t.cfg.ChatID,
+		"chat_id": chatID,
 		"text":    text,
 	}
 

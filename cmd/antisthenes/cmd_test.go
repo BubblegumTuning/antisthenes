@@ -399,7 +399,7 @@ func TestHandleSubcommand_Index(t *testing.T) {
 	args := []string{"antisthenes", "index"}
 
 	// Ensure skills/ dir exists; GenerateIndex writes skills/index.json without creating parents (hermetic)
-	if err := os.MkdirAll("skills", 0755); err != nil {
+	if err := os.MkdirAll("skills", 0o755); err != nil {
 		t.Fatalf("mkdir skills: %v", err)
 	}
 

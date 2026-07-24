@@ -109,7 +109,8 @@ func (s *Store) LoadChatMessages(sessionID string) ([]struct {
 	Role       string
 	Content    string
 	ToolCallID string
-}, error) {
+}, error,
+) {
 	rows, err := s.db.Query(`
 		SELECT role, content, tool_call_id
 		FROM messages

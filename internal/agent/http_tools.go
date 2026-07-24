@@ -7,11 +7,32 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/nanami/antisthenes/config"
 )
 
 const maxHTTPResponseBytes = 1 << 20 // 1 MiB
 
 func registerHTTPTools(r *ToolRegistry) {
+	registerHTTPToolsWithUA(r, config.DefaultHTTPUserAgent)
+}
+
+// ConfigureHTTPFetch re-registers http_fetch with the given default User-Agent
+// (empty → config.DefaultHTTPUserAgent). Call from bootstrap after NewToolRegistry
+// so config.http_user_agent is applied on agent and MCP paths.
+func ConfigureHTTPFetch(r *ToolRegistry, userAgent string) {
+	if r == nil {
+		return
+	}
+	ua := strings.TrimSpace(userAgent)
+	if ua == "" {
+		ua = config.DefaultHTTPUserAgent
+	}
+	registerHTTPToolsWithUA(r, ua)
+}
+
+func registerHTTPToolsWithUA(r *ToolRegistry, defaultUA string) {
+	ua := defaultUA
 	r.Register("http_fetch", func(args map[string]any) (string, error) {
 		rawURL, ok := args["url"].(string)
 		if !ok || strings.TrimSpace(rawURL) == "" {
@@ -59,6 +80,11 @@ func registerHTTPTools(r *ToolRegistry) {
 			for k, v := range headers {
 				req.Header.Set(k, fmt.Sprint(v))
 			}
+		}
+		// Sites such as Wikipedia reject Go's default "Go-http-client/1.1".
+		// Apply configured default only when the caller did not set User-Agent.
+		if req.Header.Get("User-Agent") == "" {
+			req.Header.Set("User-Agent", ua)
 		}
 
 		client := &http.Client{Timeout: time.Duration(timeoutSec) * time.Second}

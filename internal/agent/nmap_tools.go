@@ -14,8 +14,10 @@ import (
 	"github.com/nanami/antisthenes/internal/agent/installable"
 )
 
-var hostnamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$`)
-var portsPattern = regexp.MustCompile(`^\d{1,5}(-\d{1,5})?(,\d{1,5}(-\d{1,5})?)*$`)
+var (
+	hostnamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$`)
+	portsPattern    = regexp.MustCompile(`^\d{1,5}(-\d{1,5})?(,\d{1,5}(-\d{1,5})?)*$`)
+)
 
 const (
 	nmapDefaultTimeout = 120
@@ -77,7 +79,7 @@ func RegisterNmapTools(r *ToolRegistry, enabled bool) {
 			return "nmap_scan: approval required. Use approve_tool or approve via TUI popup.", nil
 		}
 
-		_ = os.MkdirAll(nmapLogDir, 0755)
+		_ = os.MkdirAll(nmapLogDir, 0o755)
 		ts := time.Now().Unix()
 		safeName := strings.NewReplacer("/", "_", ":", "_", ".", "_").Replace(target)
 		logPath := filepath.Join(nmapLogDir, fmt.Sprintf("scan-%s-%d.log", safeName, ts))
@@ -95,7 +97,7 @@ func RegisterNmapTools(r *ToolRegistry, enabled bool) {
 				logContent += "\nError: " + runErr.Error()
 			}
 		}
-		_ = os.WriteFile(logPath, []byte(logContent), 0644)
+		_ = os.WriteFile(logPath, []byte(logContent), 0o644)
 
 		tail := tailLines(logContent, 20)
 		summary := fmt.Sprintf("nmap_scan: %s scan of %s\nLog: %s\n--- tail ---\n%s", scanType, target, logPath, tail)

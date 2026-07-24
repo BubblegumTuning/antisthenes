@@ -22,7 +22,7 @@ func initGitRepo(t *testing.T) string {
 	run("init")
 	run("config", "user.email", "test@example.com")
 	run("config", "user.name", "Test User")
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	run("add", "README.md")
@@ -52,7 +52,7 @@ func TestGitTools_StatusLogShow(t *testing.T) {
 
 func TestGitTools_MutatingWithApproval(t *testing.T) {
 	repo := initGitRepo(t)
-	if err := os.WriteFile(filepath.Join(repo, "new.txt"), []byte("data"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "new.txt"), []byte("data"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

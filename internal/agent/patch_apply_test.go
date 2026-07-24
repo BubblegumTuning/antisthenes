@@ -28,7 +28,7 @@ func TestParseUnifiedDiff_SingleHunk(t *testing.T) {
 func TestApplyPatchUnified_SingleHunk(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "foo.txt")
-	if err := os.WriteFile(path, []byte("alpha\nbeta\ngamma\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("alpha\nbeta\ngamma\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -60,7 +60,7 @@ func TestApplyPatchDiff_StringReplaceStillWorks(t *testing.T) {
 	defer os.Chdir(orig)
 
 	path := "sample.go"
-	if err := os.WriteFile(path, []byte("package main\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -91,7 +91,7 @@ func TestApplyPatchDiff_OldTextNewText(t *testing.T) {
 	defer os.Chdir(orig)
 
 	path := "file.txt"
-	os.WriteFile(path, []byte("hello world"), 0644)
+	os.WriteFile(path, []byte("hello world"), 0o644)
 
 	r := NewToolRegistry()
 	res, err := r.Call("patch", map[string]any{

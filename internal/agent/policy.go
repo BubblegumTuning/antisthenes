@@ -75,7 +75,7 @@ func (p *Policy) Approve(command string, level ApprovalLevel) {
 		p.sessionApprovals[command] = true
 	case ApprovalPermanent:
 		p.permanentApprovals[command] = true
-		_ = os.WriteFile(".antisthenes_approvals", []byte(command+"\n"), 0600)
+		_ = os.WriteFile(".antisthenes_approvals", []byte(command+"\n"), 0o600)
 	}
 }
 

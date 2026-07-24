@@ -81,7 +81,7 @@ func registerSearchPatchTools(r *ToolRegistry) {
 				return "patch read error: " + err.Error(), nil
 			}
 			updated := strings.Replace(string(data), oldText, newText, -1)
-			err = os.WriteFile(path, []byte(updated), 0644)
+			err = os.WriteFile(path, []byte(updated), 0o644)
 			if err != nil {
 				return "patch write error: " + err.Error(), nil
 			}

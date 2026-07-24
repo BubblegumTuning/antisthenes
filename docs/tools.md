@@ -12,7 +12,7 @@
 - `git_status`, `git_log`, `git_add`, `git_commit`, `git_checkout`, `git_branch`, `git_show`, `git_diff` (delta → git diff)
 - `get_current_time`, `echo`, `get_env`
 - `list_aux_models`, `complete_with_aux` (configured `aux_models` only)
-- `http_fetch` (GET/POST, headers, body, timeout; http/https only)
+- `http_fetch` (GET/POST, headers, body, timeout; http/https only; default User-Agent from `config.http_user_agent`, overridable per call via `headers`)
 - `schedule_task`, `list_tasks`, `cancel_task` (registered when `cron_enabled: true` in TUI; also available in one-shot mode with a nil scheduler)
 - `list_processes`, `kill_process` (kill always requires approval; blocks pid 0/1 and self)
 

@@ -2,11 +2,12 @@ package context
 
 import (
 	"fmt"
-	"github.com/nanami/antisthenes/config"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nanami/antisthenes/config"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -32,12 +33,12 @@ func DumpWorkSummary(sessionID string, summary string) (string, error) {
 	if wd == "" {
 		wd = config.DefaultWorkDir()
 	}
-	if err := os.MkdirAll(wd, 0700); err != nil {
+	if err := os.MkdirAll(wd, 0o700); err != nil {
 		return "", err
 	}
 	filename := filepath.Join(wd, fmt.Sprintf("antisthenes-work-%s-%d.md", sessionID, time.Now().Unix()))
 	content := fmt.Sprintf("# Work Summary - %s\n\n%s\n", time.Now().Format(time.RFC3339), summary)
-	if err := os.WriteFile(filename, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(filename, []byte(content), 0o600); err != nil {
 		return "", err
 	}
 	return filename, nil

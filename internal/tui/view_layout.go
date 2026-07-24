@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	ctx "github.com/nanami/antisthenes/internal/context"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 // contentWidth is the full terminal content width for non-bordered chrome
@@ -175,7 +176,7 @@ func (m *Model) statusRowAuxPlain(w *ChatWindow) string {
 	if val := m.textInput.Value(); len(val) > 0 && val[0] == '/' {
 		return formatSlashHintSlot(val, slotW)
 	}
-	if ctx.NewPromptBuilder("").ShouldAutoCompress(w.Messages) {
+	if m.shouldWarnCompression(w) {
 		return truncateDisplayWidth(compressionWarningText, slotW)
 	}
 	if len(w.Nudges) > 0 {
@@ -189,8 +190,37 @@ func (m *Model) statusRowAuxStyle(p palette) lipgloss.Style {
 	if val := m.textInput.Value(); len(val) > 0 && val[0] == '/' {
 		return p.nudge
 	}
-	if ctx.NewPromptBuilder("").ShouldAutoCompress(w.Messages) {
+	if m.shouldWarnCompression(w) {
 		return p.compression
 	}
 	return p.nudge
+}
+
+func (m *Model) shouldWarnCompression(w *ChatWindow) bool {
+	var tools []openai.Tool
+	sys := ""
+	maxTok := m.cfg.MaxTokens
+	if maxTok == 0 {
+		maxTok = 160000
+	}
+	if m.loop != nil {
+		if reg := m.loop.Registry(); reg != nil {
+			tools = reg.ToOpenAITools()
+		}
+		if b := m.loop.Builder(); b != nil {
+			sys = b.SystemPrompt
+			if b.MaxTokens > 0 {
+				maxTok = b.MaxTokens
+			}
+		}
+	}
+	// Prefer live estimate of current full request; if API last prompt is higher, use that.
+	used := ctx.EstimateRequestTokens(sys, w.Messages, tools)
+	if m.loop != nil {
+		if lp := m.loop.Usage().LastPromptTokens; lp > used {
+			used = lp
+		}
+	}
+	threshold := int(float64(maxTok) * 0.75)
+	return used > threshold
 }

@@ -87,5 +87,6 @@
     "context_remind_percent": 55,
     "context_summary_percent": 60,
     "max_iterations": 40
-  }
+  },
+  "http_user_agent": "Mozilla/4.0 (compatible; MSIE 5.5; Windows 98; 56K Modem; Dial-up; Netscape 4.7 envy)"
 }

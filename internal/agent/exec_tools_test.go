@@ -15,7 +15,7 @@ func TestToolRegistry_RunCommand(t *testing.T) {
 	defer os.Chdir(orig)
 
 	sub := filepath.Join(tmp, "work")
-	if err := os.Mkdir(sub, 0755); err != nil {
+	if err := os.Mkdir(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
 

@@ -496,7 +496,7 @@ func appendWorkLog(logFile, msg string) error {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil && filepath.Dir(logFile) != "." {
-		// best-effort
+		// best-effort — ignore mkdir error
 	}
 	line := fmt.Sprintf("%s | %s\n", time.Now().UTC().Format(time.RFC3339), msg)
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)

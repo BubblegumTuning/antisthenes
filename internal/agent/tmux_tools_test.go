@@ -845,3 +845,55 @@ func TestCollapseBlankLines(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+// TestTmuxSessionDoesNotPolluteBashHistory guards against agent/test echo markers
+// landing in the operator ~/.bash_history (regression: repeated go test filled HISTFILE).
+func TestTmuxSessionDoesNotPolluteBashHistory(t *testing.T) {
+	requireTmuxOrSkip(t)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	histPath := filepath.Join(home, ".bash_history")
+	before, _ := os.ReadFile(histPath)
+
+	r := newTmuxTestRegistry()
+	s := uniqueSession("no-hist")
+	defer func() { _, _ = r.Call("tmux_kill_session", map[string]any{"session_name": s}) }()
+
+	marker := "NOHIST_" + s
+	if out, err := r.Call("tmux_attach", map[string]any{"session_name": s}); err != nil ||
+		(strings.Contains(out, "failed") && !strings.Contains(out, "already")) {
+		t.Fatalf("attach: %v %s", err, out)
+	}
+	if out, err := r.Call("tmux_send", map[string]any{"session_name": s, "keys": "echo " + marker}); err != nil ||
+		!strings.Contains(out, "sent to ") {
+		t.Fatalf("send: %v %s", err, out)
+	}
+	_ = waitCaptureContains(t, r, s, marker)
+
+	// Force shell exit so bash would normally flush HISTFILE.
+	if out, err := r.Call("tmux_send", map[string]any{"session_name": s, "keys": "exit"}); err != nil {
+		t.Fatalf("exit send: %v %s", err, out)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := exec.Command("tmux", "has-session", "-t", s).Run(); err != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	// remain-on-exit may keep the session; kill to finish any flush path.
+	_, _ = r.Call("tmux_kill_session", map[string]any{"session_name": s})
+	time.Sleep(200 * time.Millisecond)
+
+	after, err := os.ReadFile(histPath)
+	if err != nil {
+		// No history file is fine (never created / disabled).
+		return
+	}
+	// Only fail if our unique marker newly appeared.
+	if strings.Contains(string(after), marker) && !strings.Contains(string(before), marker) {
+		t.Fatalf("marker %q was written to %s — session shell must isolate HISTFILE", marker, histPath)
+	}
+}

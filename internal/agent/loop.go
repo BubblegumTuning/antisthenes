@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
+	"sync"
 
 	ctxbuilder "github.com/nanami/antisthenes/internal/context"
 	openai "github.com/sashabaranov/go-openai"
@@ -16,6 +17,9 @@ type Loop struct {
 	model    string
 	registry *ToolRegistry
 	builder  *ctxbuilder.PromptBuilder
+
+	usageMu sync.Mutex
+	usage   TokenUsage
 }
 
 // NewLoop creates a new agent loop. baseURL can be empty for default OpenAI.
@@ -56,6 +60,14 @@ func (l *Loop) Registry() *ToolRegistry {
 	return l.registry
 }
 
+// Builder exposes the prompt builder (system prompt + budget helpers).
+func (l *Loop) Builder() *ctxbuilder.PromptBuilder {
+	if l == nil {
+		return nil
+	}
+	return l.builder
+}
+
 // RunStream executes one turn with streaming, runs tools, and returns the full
 // updated message history (same contract as RunWithTools).
 func (l *Loop) RunStream(ctx context.Context, messages []openai.ChatCompletionMessage, tools []openai.Tool) ([]openai.ChatCompletionMessage, error) {
@@ -69,6 +81,9 @@ func (l *Loop) RunStream(ctx context.Context, messages []openai.ChatCompletionMe
 		Messages: promptMsgs,
 		Tools:    toolsToUse,
 		Stream:   true,
+		StreamOptions: &openai.StreamOptions{
+			IncludeUsage: true,
+		},
 	}
 
 	stream, err := l.openStream(ctx, req)
@@ -79,6 +94,11 @@ func (l *Loop) RunStream(ctx context.Context, messages []openai.ChatCompletionMe
 
 	var msg openai.ChatCompletionMessage
 	msg.Role = "assistant"
+	var lastUsage *openai.Usage
+	sys := ""
+	if l.builder != nil {
+		sys = l.builder.SystemPrompt
+	}
 
 	for {
 		resp, err := stream.Recv()
@@ -87,6 +107,10 @@ func (l *Loop) RunStream(ctx context.Context, messages []openai.ChatCompletionMe
 		}
 		if err != nil {
 			return messages, err
+		}
+		if resp.Usage != nil {
+			u := *resp.Usage
+			lastUsage = &u
 		}
 		if len(resp.Choices) == 0 {
 			continue
@@ -109,7 +133,6 @@ func (l *Loop) RunStream(ctx context.Context, messages []openai.ChatCompletionMe
 			if msg.ToolCalls[i].ID != "" {
 				toolCallMap[msg.ToolCalls[i].ID] = &msg.ToolCalls[i]
 			}
-
 		}
 
 		// (assistant with tool_calls, then tool results). Fixes malformed state for LLM.
@@ -140,6 +163,16 @@ func (l *Loop) RunStream(ctx context.Context, messages []openai.ChatCompletionMe
 				target.Function.Arguments += tc.Function.Arguments
 			}
 		}
+	}
+
+	if lastUsage != nil && (lastUsage.TotalTokens > 0 || lastUsage.PromptTokens > 0 || lastUsage.CompletionTokens > 0) {
+		l.recordAPIUsage(*lastUsage)
+	} else {
+		compHint := ctxbuilder.EstimateTokensRough(msg.Content)
+		for _, tc := range msg.ToolCalls {
+			compHint += ctxbuilder.EstimateTokensRough(tc.Function.Name) + ctxbuilder.EstimateTokensRough(tc.Function.Arguments)
+		}
+		l.recordEstimatedUsage(sys, promptMsgs, toolsToUse, compHint)
 	}
 
 	// Execute tools if present (full streaming + tool support)
@@ -210,6 +243,23 @@ func (l *Loop) RunWithTools(ctx context.Context, messages []openai.ChatCompletio
 	})
 	if err != nil {
 		return messages, err
+	}
+
+	sys := ""
+	if l.builder != nil {
+		sys = l.builder.SystemPrompt
+	}
+	if resp.Usage.TotalTokens > 0 || resp.Usage.PromptTokens > 0 || resp.Usage.CompletionTokens > 0 {
+		l.recordAPIUsage(resp.Usage)
+	} else {
+		compHint := 0
+		if len(resp.Choices) > 0 {
+			compHint = ctxbuilder.EstimateTokensRough(resp.Choices[0].Message.Content)
+			for _, tc := range resp.Choices[0].Message.ToolCalls {
+				compHint += ctxbuilder.EstimateTokensRough(tc.Function.Name) + ctxbuilder.EstimateTokensRough(tc.Function.Arguments)
+			}
+		}
+		l.recordEstimatedUsage(sys, promptMsgs, tools, compHint)
 	}
 
 	choice := resp.Choices[0]

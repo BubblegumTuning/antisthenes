@@ -21,7 +21,7 @@ func TestToolRegistry_DeleteMoveCopyFile(t *testing.T) {
 	})
 
 	src := "source.txt"
-	if err := os.WriteFile(src, []byte("hello"), 0644); err != nil {
+	if err := os.WriteFile(src, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,7 +96,7 @@ func TestToolRegistry_FileStatAndChmod(t *testing.T) {
 	defer os.Chdir(orig)
 
 	path := "perm.txt"
-	if err := os.WriteFile(path, []byte("x"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -118,7 +118,7 @@ func TestToolRegistry_FileStatAndChmod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0644 {
+	if info.Mode().Perm() != 0o644 {
 		t.Fatalf("mode got %o", info.Mode().Perm())
 	}
 }

@@ -1,8 +1,8 @@
 # Antisthenes
 
-Minimal Go-based AI agent with streaming tool calling, persistent memory, and TUI.
+Minimal Go-based AI agent with streaming tool calling, persistent memory, and a rich terminal UI.
 
-**Version**: 0.3.2 (injected at build time)
+**Version**: 0.3.6 (injected at build time)
 
 ## Requirements
 
@@ -33,18 +33,7 @@ Full CLI reference: [docs/cli.md](docs/cli.md)
 
 ## Capabilities
 
-- Streaming agent loop with native tool calling
-- SQLite-backed memory (sessions with titles, nudges, scheduled tasks)
-- File-based skills (`SKILL.md` + lazy index)
-- Interactive Bubble Tea TUI and non-interactive one-shot mode
-- Multi-endpoint configuration plus optional `aux_models` for cheap/async work (e.g. session titles)
-- MCP server/client
-- Optional gateway adapters (e.g. Telegram)
-- Optional cron/scheduler (`cron_enabled` in config; off by default in the TUI)
-- Policy/approval for sensitive tools
-- Install helpers for common CLI tools; optional constrained `nmap_scan`
-- Persistent tmux sessions (local and registered SSH hosts)
-- `/iterative` multi-phase Plan → Execute → Review builds (async; optional supervised mode)
+Streaming agent loop, persistent memory, skills, TUI/one-shot modes, MCP, gateways, cron, approvals, tmux, and iterative PER builds.
 
 Details: [docs/features.md](docs/features.md)
 
@@ -65,25 +54,12 @@ cp config.example.json config.json
 # edit endpoints, model names, and options
 ```
 
-See [docs/configuration.md](docs/configuration.md)
-
-## Building
 See [docs/configuration.md](docs/configuration.md). `config.json` is gitignored; do not commit secrets.
 
 ## TUI
 
 Slash commands include `/help`, `/tools`, `/iterative`, `/build`, `/theme`, `/tmux`, `/mouse`, `/copy`, and others.  
 Reference: [docs/tui.md](docs/tui.md)
-
-### `/iterative` (summary)
-
-1. Start with `/iterative` and a project name.  
-2. Choose supervised mode when prompted (`y/N`, default **N**).  
-3. Plan in conversation; confirm when ready.  
-4. **Unsupervised**: async Plan → Execute → Review cycles until done, failed, cancelled, or the execute cap.  
-5. **Supervised**: Plan first, then choose an executor before Execute → Review.  
-6. While a job runs: `cancel` or **Ctrl+C once** interrupts that window’s job; Ctrl+C again quits the app.  
-7. Other chat windows may run their own jobs in parallel.
 
 ## Development
 
@@ -96,7 +72,7 @@ make release        # static linux/amd64 tarball under dist/
 Manual build:
 
 ```bash
-CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=0.3.2" -o antisthenes ./cmd/antisthenes
+CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=0.3.6" -o antisthenes ./cmd/antisthenes
 ```
 
 Suggested checks before merge:

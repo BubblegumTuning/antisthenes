@@ -82,9 +82,37 @@ func (l *Loop) openStream(ctx context.Context, req openai.ChatCompletionRequest)
 			return stream, nil
 		}
 		last = err
+		// Some local servers reject stream_options; drop and retry once per attempt.
+		if req.StreamOptions != nil && streamOptionsUnsupported(err) {
+			req.StreamOptions = nil
+			stream, err = l.client.CreateChatCompletionStream(ctx, req)
+			if err == nil {
+				return stream, nil
+			}
+			last = err
+		}
 		if !isTransientNetErr(err) {
 			return nil, err
 		}
 	}
 	return nil, last
+}
+
+func streamOptionsUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, frag := range []string{
+		"stream_options",
+		"include_usage",
+		"unknown field",
+		"unrecognized request argument",
+	} {
+		if strings.Contains(s, frag) {
+			return true
+		}
+	}
+	// HTTP 400 from picky OpenAI-compatible servers
+	return strings.Contains(s, "status code: 400") || strings.Contains(s, "statuscode=400")
 }

@@ -73,9 +73,9 @@ func applyPathDefaults(cfg *Config) {
 // ensureDataDirs creates parent of DBPath and WorkDir (best-effort).
 func ensureDataDirs(cfg Config) {
 	if p := strings.TrimSpace(cfg.DBPath); p != "" {
-		_ = os.MkdirAll(filepath.Dir(p), 0700)
+		_ = os.MkdirAll(filepath.Dir(p), 0o700)
 	}
 	if d := strings.TrimSpace(cfg.WorkDir); d != "" {
-		_ = os.MkdirAll(d, 0700)
+		_ = os.MkdirAll(d, 0o700)
 	}
 }
